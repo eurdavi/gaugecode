@@ -63,14 +63,24 @@ export function TaskbarBar() {
   );
 }
 
-/** Two columns of dots, the usual "drag me" affordance. */
+/**
+ * Two columns of dots, the usual "drag me" affordance.
+ *
+ * Not `data-tauri-drag-region`: that asks Windows to run its own move loop,
+ * which refuses on a window that cannot be activated. Rust follows the pointer
+ * instead, so all this has to do is say when the grip went down.
+ */
 function Grip({ label }: { label: string }) {
   return (
     <div
-      data-tauri-drag-region
-      className="flex h-full shrink-0 cursor-grab items-center px-1 active:cursor-grabbing"
+      className="flex h-full shrink-0 cursor-grab items-center px-1.5 active:cursor-grabbing"
       title={label}
       aria-label={label}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        void invoke("begin_bar_drag");
+      }}
     >
       <svg width="4" height="14" viewBox="0 0 4 14" aria-hidden="true">
         {[2, 5, 8, 11].map((y) =>

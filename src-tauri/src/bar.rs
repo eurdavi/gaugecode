@@ -38,14 +38,26 @@ pub struct BarView {
 
 #[derive(Default)]
 pub struct BarState {
+    inner: Mutex<Runtime>,
+}
+
+#[derive(Default)]
+struct Runtime {
     /// The position `apply` last set, so a `Moved` event can tell a drag apart
     /// from our own placement.
-    last_applied: Mutex<Option<PhysicalPosition<i32>>>,
+    last_applied: Option<PhysicalPosition<i32>>,
+    /// Distance from the pointer to the strip's leading edge when it was
+    /// grabbed, so the strip does not jump under the cursor.
+    grab_gap: Option<i32>,
 }
 
 impl BarState {
-    fn lock(&self) -> std::sync::MutexGuard<'_, Option<PhysicalPosition<i32>>> {
-        self.last_applied.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    fn lock(&self) -> std::sync::MutexGuard<'_, Runtime> {
+        self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn is_dragging(&self) -> bool {
+        self.lock().grab_gap.is_some()
     }
 }
 
@@ -146,12 +158,19 @@ pub fn place(taskbar: Taskbar, scale: f64, offset: Option<i32>) -> Rect {
 
 /// Offset to remember after the user dragged the strip to `position`.
 pub fn offset_of(taskbar: Taskbar, position: PhysicalPosition<i32>, scale: f64) -> i32 {
+    let leading = if taskbar.is_horizontal() { position.x } else { position.y };
+    offset_of_leading(taskbar, leading, scale)
+}
+
+/// The same, from just the coordinate along the taskbar's own axis.
+pub fn offset_of_leading(taskbar: Taskbar, leading: i32, scale: f64) -> i32 {
     let width = (WIDTH * scale).round() as i32;
-    if taskbar.is_horizontal() {
-        taskbar.rect.x + taskbar.rect.width as i32 - position.x - width
+    let end = if taskbar.is_horizontal() {
+        taskbar.rect.x + taskbar.rect.width as i32
     } else {
-        taskbar.rect.y + taskbar.rect.height as i32 - position.y - width
-    }
+        taskbar.rect.y + taskbar.rect.height as i32
+    };
+    end - leading - width
 }
 
 fn monitor_and_work_area(app: &AppHandle) -> Option<(Rect, Rect, f64)> {
@@ -194,7 +213,7 @@ pub fn apply(app: &AppHandle) {
 
     let rect = place(taskbar, scale, prefs.bar_offset);
     let position = PhysicalPosition::new(rect.x, rect.y);
-    *app.state::<BarState>().lock() = Some(position);
+    app.state::<BarState>().lock().last_applied = Some(position);
     let _ = window.set_size(PhysicalSize::new(rect.width, rect.height));
     let _ = window.set_position(position);
     let _ = window.set_focusable(false);
@@ -207,30 +226,130 @@ pub fn apply(app: &AppHandle) {
 ///
 /// Both windows are "always on top", and within that band Windows orders by
 /// activation. The strip is never activated — it must not steal focus — so
-/// Explorer's taskbar quietly ends up above it and hides it completely. There
-/// is no API to pin one topmost window over another, so the flag is re-asserted
-/// on a short cadence instead; toggling it is what forces a fresh
-/// `SetWindowPos`, a bare `true` on an already-topmost window is a no-op.
+/// Explorer's taskbar quietly ends up above it and hides it.
+///
+/// `SetWindowPos` re-asserts the position in that band directly. Going through
+/// tao's `set_always_on_top` instead does not work: it diffs window flags and
+/// skips the call when the flag is already set, so it has to be toggled off and
+/// on — and that off, however brief, is a visible flicker.
+#[cfg(target_os = "windows")]
 pub fn raise(app: &AppHandle) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+
     let Some(window) = app.get_webview_window(BAR_WINDOW) else { return };
     if !window.is_visible().unwrap_or(false) {
         return;
     }
-    let _ = window.set_always_on_top(false);
-    let _ = window.set_always_on_top(true);
+    // Tauri hands back the `windows` crate's HWND; `windows-sys` wants the bare
+    // pointer inside it.
+    let Ok(hwnd) = window.hwnd() else { return };
+
+    // SWP_NOACTIVATE matters as much as the rest: raising the strip must not
+    // take focus from whatever the user is typing in.
+    unsafe {
+        SetWindowPos(
+            hwnd.0,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn raise(_app: &AppHandle) {}
+
+/// Whether the primary mouse button is still held.
+///
+/// The strip is not focusable, so the usual window move loop refuses to run and
+/// a `pointerup` in the webview cannot be relied on either — the pointer spends
+/// the drag outside the window. Asking the OS directly is what works.
+#[cfg(target_os = "windows")]
+fn primary_button_down() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    // The high bit means "currently down".
+    unsafe { GetAsyncKeyState(VK_LBUTTON as i32) < 0 }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn primary_button_down() -> bool {
+    false
 }
 
 /// Called from the window's `Moved` event. Our own `set_position` fires it too,
-/// so only a position we did not set counts as a drag worth remembering.
+/// so only a position we did not set counts as a move worth remembering.
 pub fn note_moved(app: &AppHandle, position: PhysicalPosition<i32>) {
     let state = app.state::<BarState>();
-    if *state.lock() == Some(position) {
+    if state.lock().last_applied == Some(position) {
         return;
     }
     let Some((taskbar, scale)) = current_taskbar(app) else { return };
     let offset = offset_of(taskbar, position, scale);
     app.state::<Arc<AppState>>().set_bar_offset(Some(offset));
-    *state.lock() = Some(position);
+    state.lock().last_applied = Some(position);
+}
+
+/// Starts a drag: records where along the strip it was grabbed.
+///
+/// The webview only says "the grip went down"; the follow loop and the release
+/// are handled here, because a non-focusable window gets neither the OS move
+/// loop nor a reliable `pointerup`.
+pub fn begin_drag(app: &AppHandle) {
+    let Some((taskbar, _)) = current_taskbar(app) else { return };
+    let Ok(cursor) = app.cursor_position() else { return };
+    let Some(window) = app.get_webview_window(BAR_WINDOW) else { return };
+    let Ok(position) = window.outer_position() else { return };
+
+    let gap = if taskbar.is_horizontal() {
+        cursor.x as i32 - position.x
+    } else {
+        cursor.y as i32 - position.y
+    };
+    app.state::<BarState>().lock().grab_gap = Some(gap);
+}
+
+/// One step of a drag. Returns false once the button is up, so the caller can
+/// stop the follow loop.
+pub fn drag_step(app: &AppHandle) -> bool {
+    let state = app.state::<BarState>();
+    let Some(gap) = state.lock().grab_gap else { return false };
+
+    if !primary_button_down() {
+        state.lock().grab_gap = None;
+        // Persist where it ended up, so the next launch puts it back there.
+        if let Some(window) = app.get_webview_window(BAR_WINDOW) {
+            if let Ok(position) = window.outer_position() {
+                note_moved(app, position);
+            }
+        }
+        return false;
+    }
+
+    let Some((taskbar, scale)) = current_taskbar(app) else { return false };
+    let Ok(cursor) = app.cursor_position() else { return true };
+    let Some(window) = app.get_webview_window(BAR_WINDOW) else { return false };
+
+    // Reuse `place`, so a drag is clamped by exactly the same rule that keeps
+    // the strip on the taskbar at launch.
+    let leading = if taskbar.is_horizontal() { cursor.x as i32 } else { cursor.y as i32 } - gap;
+    let rect = place(taskbar, scale, Some(offset_of_leading(taskbar, leading, scale)));
+    let position = PhysicalPosition::new(rect.x, rect.y);
+    state.lock().last_applied = Some(position);
+    let _ = window.set_position(position);
+    true
+}
+
+pub fn cancel_drag(app: &AppHandle) {
+    app.state::<BarState>().lock().grab_gap = None;
+}
+
+pub fn is_dragging(app: &AppHandle) -> bool {
+    app.try_state::<BarState>().is_some_and(|state| state.is_dragging())
 }
 
 pub fn view(app: &AppHandle) -> BarView {
@@ -288,6 +407,27 @@ mod tests {
         let offset = offset_of(taskbar, dragged_to, 1.0);
         let placed = place(taskbar, 1.0, Some(offset));
         assert_eq!(placed.x, 600, "the strip should come back where it was left");
+    }
+
+    #[test]
+    fn dragging_by_the_grip_lands_the_leading_edge_under_the_pointer() {
+        // A drag records the gap between pointer and leading edge, then feeds
+        // the pointer's position back through `place`. Grabbing 20 px in and
+        // moving to x=700 should put the leading edge at 680.
+        let taskbar = taskbar_of(MONITOR, Rect { x: 0, y: 0, width: 1440, height: 852 }).unwrap();
+        let grab_gap = 20;
+        let leading = 700 - grab_gap;
+        let rect = place(taskbar, 1.0, Some(offset_of_leading(taskbar, leading, 1.0)));
+        assert_eq!(rect.x, 680);
+    }
+
+    #[test]
+    fn the_strip_can_be_dragged_to_the_far_right_of_the_taskbar() {
+        // The complaint that started this: it would not go right. The clamp has
+        // to allow the strip's trailing edge within a margin of the screen edge.
+        let taskbar = taskbar_of(MONITOR, Rect { x: 0, y: 0, width: 1440, height: 852 }).unwrap();
+        let far_right = place(taskbar, 1.0, Some(offset_of_leading(taskbar, 9999, 1.0)));
+        assert_eq!(far_right.x + far_right.width as i32, 1440 - EDGE_MARGIN as i32);
     }
 
     #[test]

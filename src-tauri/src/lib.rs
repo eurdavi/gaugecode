@@ -79,6 +79,7 @@ pub fn run() {
             commands::toggle_notch_pin,
             commands::get_bar,
             commands::open_popup,
+            commands::begin_bar_drag,
             updater::update_status,
             updater::check_update_now,
             updater::install_update,

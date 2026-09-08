@@ -255,6 +255,31 @@ pub fn get_bar(app: AppHandle, _state: State<'_, Arc<AppState>>) -> bar::BarView
     bar::view(&app)
 }
 
+/// Begins dragging the strip along the taskbar.
+///
+/// The webview only reports the grip going down; a 60 Hz loop here follows the
+/// pointer and stops itself when the button comes up. The window is not
+/// focusable, so neither the OS move loop nor a `pointerup` in the webview can
+/// be relied on.
+#[tauri::command]
+pub fn begin_bar_drag(app: AppHandle) {
+    if bar::is_dragging(&app) {
+        return;
+    }
+    bar::begin_drag(&app);
+
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            if !bar::drag_step(&handle) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+        }
+        let _ = handle.emit(PREFS_EVENT, view_of(&handle.state::<Arc<AppState>>()));
+    });
+}
+
 /// The strip has no room for details; a click opens the same popup the tray does.
 #[tauri::command]
 pub fn open_popup(app: AppHandle) {

@@ -50,6 +50,19 @@ tauri-plugin-updater = "2.11.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3.7.0"
 
+# Two Win32 calls the taskbar strip cannot do without (SPEC §9.5):
+# `SetWindowPos` to re-assert topmost *without* dropping the flag first — which
+# is what tao's `set_always_on_top` requires, and what made the strip flicker —
+# and `GetAsyncKeyState` to know when a drag has ended on a window that is
+# deliberately not focusable. Already in the tree via tauri, so it costs no
+# extra compilation.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1
