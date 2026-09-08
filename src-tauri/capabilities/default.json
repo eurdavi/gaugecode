@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Baseline capability for every app window. Windows are added here as milestones land (popup in M1, notch in M2).",
+  "windows": ["settings"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}

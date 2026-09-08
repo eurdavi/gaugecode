@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  /* System font stack so the app looks native on Windows and macOS (AGENTS.md). */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Usage bands (SPEC §9.1): green < 50 %, amber 50–80 %, red > 80 %. */
+  --color-band-ok: #22c55e;
+  --color-band-warn: #f59e0b;
+  --color-band-hot: #ef4444;
+  --color-band-off: #6b7280;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
