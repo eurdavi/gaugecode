@@ -1,0 +1,9 @@
+{
+  "limits": [
+    { "kind": "session", "percent": 42, "resets_at": "2026-09-08T04:00:00Z" },
+    { "kind": "weekly_all", "percent": 61.5, "resets_at": "2026-09-12T00:00:00Z" },
+    { "kind": "weekly_opus", "percent": 12, "resets_at": "2026-09-12T00:00:00Z" }
+  ],
+  "five_hour": { "utilization": 42, "resets_at": "2026-09-08T04:00:00Z" },
+  "seven_day": { "utilization": 61.5, "resets_at": "2026-09-12T00:00:00Z" }
+}
