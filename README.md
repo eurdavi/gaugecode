@@ -11,8 +11,8 @@ Two surfaces, both in v1:
 Inspired by [vinzdg/codenotch](https://github.com/vinzdg/codenotch) (macOS, Swift). This is an
 independent, cross-platform reimplementation in Tauri 2 (Rust + React).
 
-> **Status: M1.** The Claude Code adapter, the polling scheduler and the tray icon are in. The
-> notch (M2) and the Cursor/Codex adapters (M3) are not. See `SPEC.md` §12 for the roadmap.
+> **Status: M2.** The Claude Code adapter, the polling scheduler, the tray icon and the notch
+> overlay are in. The Cursor and Codex adapters (M3) are not. See `SPEC.md` §12 for the roadmap.
 
 ## What works today
 
