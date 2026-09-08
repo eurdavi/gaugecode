@@ -10,6 +10,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_positioner::{Position, WindowExt};
 
+use crate::i18n::{fill, Language, Strings};
 use crate::icon::{self, ICON_SIZE};
 use crate::state::AppState;
 
@@ -25,6 +26,8 @@ const REOPEN_GUARD: Duration = Duration::from_millis(300);
 pub struct TrayState {
     refresh_item: MenuItem<Wry>,
     notch_item: MenuItem<Wry>,
+    settings_item: MenuItem<Wry>,
+    quit_item: MenuItem<Wry>,
     last_hidden: Mutex<Option<Instant>>,
 }
 
@@ -45,10 +48,14 @@ impl TrayState {
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let refresh_item = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
-    let notch_item = MenuItem::with_id(app, "notch", "Hide notch", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit GaugeCode", true, None::<&str>)?;
+    // The menu is built before any window exists, so these strings come from the
+    // Rust catalogue and are re-applied by `update` whenever the language changes.
+    let text = app.state::<Arc<AppState>>().language().strings();
+
+    let refresh_item = MenuItem::with_id(app, "refresh", text.menu_refresh, true, None::<&str>)?;
+    let notch_item = MenuItem::with_id(app, "notch", text.menu_hide_notch, true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", text.menu_settings, true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", text.menu_quit, true, None::<&str>)?;
     let first_separator = PredefinedMenuItem::separator(app)?;
     let second_separator = PredefinedMenuItem::separator(app)?;
 
@@ -64,7 +71,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    app.manage(TrayState { refresh_item, notch_item, last_hidden: Mutex::new(None) });
+    app.manage(TrayState {
+        refresh_item,
+        notch_item,
+        settings_item,
+        quit_item,
+        last_hidden: Mutex::new(None),
+    });
 
     let initial = icon::render(None, crate::model::Band::Off, false, cfg!(target_os = "macos"));
 
@@ -136,9 +149,12 @@ pub fn toggle_popup(app: &AppHandle) {
 }
 
 /// Repaints the icon when the whole percent changed, and always refreshes the
-/// tooltip and the "Refresh now" label.
+/// tooltip and every menu label — the labels are re-applied because the language
+/// can change while the app is running.
 pub fn update(app: &AppHandle) {
     let state = app.state::<Arc<AppState>>();
+    let language = state.language();
+    let text = language.strings();
 
     if let Some(face) = state.face_if_changed() {
         if let Some(tray) = app.tray_by_id(TRAY_ID) {
@@ -151,73 +167,90 @@ pub fn update(app: &AppHandle) {
     }
 
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let _ = tray.set_tooltip(Some(tooltip(&state)));
+        let _ = tray.set_tooltip(Some(tooltip(&state, language)));
     }
 
     let prefs = state.prefs();
-    let primary = prefs.primary;
     let tray_state = app.state::<TrayState>();
-    let _ = tray_state
-        .notch_item
-        .set_text(if prefs.notch_visible { "Hide notch" } else { "Show notch" });
-    match state.backoff_until(primary) {
+    let _ = tray_state.settings_item.set_text(text.menu_settings);
+    let _ = tray_state.quit_item.set_text(text.menu_quit);
+    let _ = tray_state.notch_item.set_text(if prefs.notch_visible {
+        text.menu_hide_notch
+    } else {
+        text.menu_show_notch
+    });
+
+    match state.backoff_until(prefs.primary) {
         Some(until) => {
-            let local = until.with_timezone(&Local).format("%H:%M");
-            let _ = tray_state.refresh_item.set_text(format!("Waiting until {local}"));
+            let local = until.with_timezone(&Local).format("%H:%M").to_string();
+            let _ = tray_state.refresh_item.set_text(fill(text.menu_waiting_until, &local));
             let _ = tray_state.refresh_item.set_enabled(false);
         }
         None => {
-            let _ = tray_state.refresh_item.set_text("Refresh now");
+            let _ = tray_state.refresh_item.set_text(text.menu_refresh);
             let _ = tray_state.refresh_item.set_enabled(true);
         }
     }
 }
 
-fn tooltip(state: &AppState) -> String {
-    let primary = state.prefs().primary;
+fn tooltip(state: &AppState, language: Language) -> String {
+    let text = language.strings();
+    // Whatever provider the icon is showing, so the number and the name always
+    // describe the same thing.
+    let primary = state.tray_provider();
     let name = primary.display_name();
 
     let Some(snapshot) = state.snapshot(primary) else {
-        return format!("GaugeCode — {name}: no reading yet");
+        return format!("GaugeCode — {}", fill(text.tooltip_no_reading, name));
     };
     let Some(window) = snapshot.primary_window() else {
-        return format!("GaugeCode — {name}: nothing metered");
+        return format!("GaugeCode — {}", fill(text.tooltip_nothing_metered, name));
     };
 
     let percent = (window.used_fraction * 100.0).round() as i64;
     let mut line = format!("{name} — {} {percent}%", window.label);
-    if let Some(reset) = humanize_reset(window.resets_at, Utc::now()) {
+    if let Some(reset) = humanize_reset(window.resets_at, Utc::now(), text) {
         line.push_str(&format!(" · {reset}"));
     }
-    if let Some(age) = stale_age(state, primary) {
+    if let Some(age) = stale_age(state, primary, text) {
         line.push_str(&format!(" · {age}"));
     }
     line
 }
 
-fn stale_age(state: &AppState, provider: crate::model::ProviderId) -> Option<String> {
+fn stale_age(
+    state: &AppState,
+    provider: crate::model::ProviderId,
+    text: &Strings,
+) -> Option<String> {
     match state.status(provider)? {
         crate::model::ProviderStatus::Stale { age_secs } => {
-            Some(format!("{} old", humanize_minutes((age_secs / 60) as i64)))
+            Some(fill(text.age_old, &humanize_minutes((age_secs / 60) as i64, text)))
         }
-        crate::model::ProviderStatus::NeedsAuth => Some("needs sign-in".into()),
+        crate::model::ProviderStatus::NeedsAuth => Some(text.needs_sign_in.into()),
         crate::model::ProviderStatus::Error { message } => Some(message),
         _ => None,
     }
 }
 
-fn humanize_reset(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> Option<String> {
+fn humanize_reset(
+    resets_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+    text: &Strings,
+) -> Option<String> {
     let at = resets_at?;
     let minutes = at.signed_duration_since(now).num_minutes();
     if minutes <= 0 {
-        return Some("resetting now".into());
+        return Some(text.resetting_now.into());
     }
-    Some(format!("resets in {}", humanize_minutes(minutes)))
+    Some(fill(text.resets_in, &humanize_minutes(minutes, text)))
 }
 
-fn humanize_minutes(minutes: i64) -> String {
+/// Durations stay numeric on purpose: `2h 13m` reads the same in all three
+/// languages, so only the "under a minute" case needs translating.
+fn humanize_minutes(minutes: i64, text: &Strings) -> String {
     if minutes < 1 {
-        return "under a minute".into();
+        return text.under_a_minute.into();
     }
     if minutes < 60 {
         return format!("{minutes}m");
@@ -233,15 +266,19 @@ fn humanize_minutes(minutes: i64) -> String {
 mod tests {
     use super::*;
 
+    fn en() -> &'static Strings {
+        Language::English.strings()
+    }
+
     #[test]
     fn minutes_are_humanized_in_the_expected_steps() {
-        assert_eq!(humanize_minutes(0), "under a minute");
-        assert_eq!(humanize_minutes(1), "1m");
-        assert_eq!(humanize_minutes(59), "59m");
-        assert_eq!(humanize_minutes(60), "1h 00m");
-        assert_eq!(humanize_minutes(133), "2h 13m");
-        assert_eq!(humanize_minutes(60 * 24), "1d 0h");
-        assert_eq!(humanize_minutes(60 * 50), "2d 2h");
+        assert_eq!(humanize_minutes(0, en()), "under a minute");
+        assert_eq!(humanize_minutes(1, en()), "1m");
+        assert_eq!(humanize_minutes(59, en()), "59m");
+        assert_eq!(humanize_minutes(60, en()), "1h 00m");
+        assert_eq!(humanize_minutes(133, en()), "2h 13m");
+        assert_eq!(humanize_minutes(60 * 24, en()), "1d 0h");
+        assert_eq!(humanize_minutes(60 * 50, en()), "2d 2h");
     }
 
     #[test]
@@ -249,10 +286,23 @@ mod tests {
         let now = DateTime::parse_from_rfc3339("2026-09-07T12:00:00Z").unwrap().with_timezone(&Utc);
         let at = |offset_minutes: i64| Some(now + chrono::Duration::minutes(offset_minutes));
 
-        assert_eq!(humanize_reset(None, now), None);
-        assert_eq!(humanize_reset(at(-5), now).as_deref(), Some("resetting now"));
-        assert_eq!(humanize_reset(at(0), now).as_deref(), Some("resetting now"));
-        assert_eq!(humanize_reset(at(133), now).as_deref(), Some("resets in 2h 13m"));
-        assert_eq!(humanize_reset(at(45), now).as_deref(), Some("resets in 45m"));
+        assert_eq!(humanize_reset(None, now, en()), None);
+        assert_eq!(humanize_reset(at(-5), now, en()).as_deref(), Some("resetting now"));
+        assert_eq!(humanize_reset(at(0), now, en()).as_deref(), Some("resetting now"));
+        assert_eq!(humanize_reset(at(133), now, en()).as_deref(), Some("resets in 2h 13m"));
+        assert_eq!(humanize_reset(at(45), now, en()).as_deref(), Some("resets in 45m"));
+    }
+
+    #[test]
+    fn the_reset_line_follows_the_chosen_language() {
+        let now = DateTime::parse_from_rfc3339("2026-09-07T12:00:00Z").unwrap().with_timezone(&Utc);
+        let at = Some(now + chrono::Duration::minutes(133));
+
+        let pt = Language::BrazilianPortuguese.strings();
+        assert_eq!(humanize_reset(at, now, pt).as_deref(), Some("reseta em 2h 13m"));
+        let es = Language::Spanish.strings();
+        assert_eq!(humanize_reset(at, now, es).as_deref(), Some("se reinicia en 2h 13m"));
+        // The numeric part is language independent, so it must not be translated.
+        assert_eq!(humanize_minutes(133, pt), "2h 13m");
     }
 }

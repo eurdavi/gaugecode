@@ -1,4 +1,6 @@
+pub mod autostart;
 pub mod commands;
+pub mod i18n;
 pub mod icon;
 pub mod model;
 pub mod notch;
@@ -7,12 +9,14 @@ pub mod scheduler;
 pub mod state;
 pub mod store;
 pub mod tray;
+pub mod updater;
 
 use std::sync::Arc;
 
 use tauri::{Manager, WindowEvent};
 use tracing_subscriber::EnvFilter;
 
+use crate::i18n::Language;
 use crate::providers::Registry;
 use crate::state::AppState;
 use crate::store::Store;
@@ -31,6 +35,17 @@ fn demo_mode() -> bool {
     std::env::var(DEMO_ENV).is_ok_and(|value| value == "1" || value.eq_ignore_ascii_case("true"))
 }
 
+/// Windows are created before `setup` runs, so an event can arrive before the
+/// tray state is managed. `try_state` makes that a no-op instead of a panic.
+fn note_popup_hidden(window: &tauri::Window) {
+    if window.label() != tray::POPUP_WINDOW {
+        return;
+    }
+    if let Some(state) = window.app_handle().try_state::<tray::TrayState>() {
+        state.note_popup_hidden();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_tracing();
@@ -38,30 +53,44 @@ pub fn run() {
     tracing::info!(version = env!("CARGO_PKG_VERSION"), demo, "starting gaugecode");
 
     let app = tauri::Builder::default()
+        // A second launch must not add a second tray icon; it shows the running
+        // app's settings instead. Has to be the first plugin registered.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tracing::debug!("a second instance was launched; showing settings instead");
+            tray::show_settings(app);
+        }))
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
+            commands::get_prefs,
             commands::refresh_now,
             commands::set_pref,
             commands::open_settings,
             commands::hide_popup,
             commands::get_notch,
             commands::toggle_notch_pin,
+            updater::update_status,
+            updater::check_update_now,
+            updater::install_update,
         ])
         .on_window_event(|window, event| match event {
             // Closing a window in a tray app means "put it away", not "quit".
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
-                if window.label() == tray::POPUP_WINDOW {
-                    window.app_handle().state::<tray::TrayState>().note_popup_hidden();
-                }
+                note_popup_hidden(window);
             }
             // The popup goes away as soon as it loses focus (SPEC §9.2).
             WindowEvent::Focused(false) if window.label() == tray::POPUP_WINDOW => {
                 let _ = window.hide();
-                window.app_handle().state::<tray::TrayState>().note_popup_hidden();
+                note_popup_hidden(window);
             }
             _ => {}
         })
@@ -73,17 +102,28 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             tracing::debug!(dir = %dir.display(), "app data dir");
 
-            let state = Arc::new(AppState::load(Store::new(dir), demo));
+            // Resolved once: the OS language cannot change under a running app,
+            // and the tray menu is built before any window could report it.
+            let system_language = Language::from_os();
+            tracing::debug!(?system_language, "resolved system language");
+
+            let state = Arc::new(AppState::load(Store::new(dir), demo, system_language));
             app.manage(state);
             app.manage(Arc::new(Registry::new(demo)));
             app.manage(notch::NotchState::new());
+            app.manage(updater::UpdateState::default());
 
             let handle = app.handle().clone();
+            autostart::reconcile(&handle);
             tray::build(&handle)?;
             tray::update(&handle);
             notch::apply(&handle, notch::NotchMode::Folded);
             notch::spawn_pointer_watch(&handle);
             scheduler::spawn(&handle);
+            updater::spawn_check(&handle);
+            // A webview that loaded before this point got an error from
+            // `get_prefs`; this is how it catches up.
+            commands::publish_prefs(&handle);
 
             Ok(())
         })

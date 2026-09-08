@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "positioner:default"
+    "positioner:default",
+    "autostart:default",
+    "updater:default"
   ]
 }

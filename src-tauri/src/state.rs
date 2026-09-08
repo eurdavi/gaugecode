@@ -8,8 +8,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 
-use crate::model::{Band, ProviderId, ProviderSnapshot, ProviderStatus};
-use crate::notch::NotchEdge;
+use crate::i18n::Language;
+use crate::model::{Band, Fidelity, ProviderId, ProviderSnapshot, ProviderStatus};
+use crate::notch::{NotchAnimation, NotchEdge};
 use crate::store::{BackoffRecord, Prefs, Store};
 
 /// Polling cadence while the provider's tool is running.
@@ -34,6 +35,25 @@ pub fn backoff_delay(consecutive: u32, retry_after: Option<Duration>) -> Duratio
     }
 }
 
+/// Loads the cache, dropping anything a real adapter could not have produced.
+///
+/// The real adapters only ever emit `Official`. A `Manual` snapshot on disk can
+/// only be a demo fixture left behind by an earlier run, and showing yesterday's
+/// fake percentage as if it were real is precisely what this app must not do.
+fn real_snapshots(store: &Store) -> HashMap<ProviderId, ProviderSnapshot> {
+    let mut snapshots = store.load_snapshots();
+    let before = snapshots.len();
+    snapshots.retain(|_, snapshot| snapshot.fidelity != Fidelity::Manual);
+    if snapshots.len() != before {
+        tracing::debug!(
+            dropped = before - snapshots.len(),
+            "discarded demo fixtures from the cache"
+        );
+        store.save_snapshots(&snapshots);
+    }
+    snapshots
+}
+
 /// What the tray icon should currently draw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrayFace {
@@ -46,6 +66,9 @@ pub struct TrayFace {
 pub struct AppState {
     store: Store,
     demo: bool,
+    /// Language the OS is set to, used whenever the user has not picked one.
+    /// Resolved once at startup: it cannot change while the app runs.
+    system_language: Language,
     inner: RwLock<Inner>,
     refresh: tokio::sync::Notify,
 }
@@ -62,7 +85,7 @@ struct Inner {
 }
 
 impl AppState {
-    pub fn load(store: Store, demo: bool) -> Self {
+    pub fn load(store: Store, demo: bool, system_language: Language) -> Self {
         let mut prefs = store.load_prefs();
         if demo {
             // A demo shows all three rings. In-memory only — `save_prefs` is a
@@ -73,17 +96,28 @@ impl AppState {
         }
 
         let inner = Inner {
-            snapshots: if demo { HashMap::new() } else { store.load_snapshots() },
+            snapshots: if demo { HashMap::new() } else { real_snapshots(&store) },
             statuses: HashMap::new(),
             backoff: if demo { HashMap::new() } else { store.load_backoff() },
             prefs,
             last_face: None,
         };
-        Self { store, demo, inner: RwLock::new(inner), refresh: tokio::sync::Notify::new() }
+        Self {
+            store,
+            demo,
+            system_language,
+            inner: RwLock::new(inner),
+            refresh: tokio::sync::Notify::new(),
+        }
     }
 
     pub fn is_demo(&self) -> bool {
         self.demo
+    }
+
+    /// The language to draw in: the user's choice, or the OS's when there is none.
+    pub fn language(&self) -> Language {
+        self.read().prefs.language.unwrap_or(self.system_language)
     }
 
     /// Demo runs must not overwrite the real cache or preferences (SPEC §9.4).
@@ -141,33 +175,48 @@ impl AppState {
         self.persist_prefs(&prefs);
     }
 
-    pub fn set_notch_visible(&self, visible: bool) {
+    /// Mutates the preferences under the write lock and persists the result.
+    /// Demo runs skip the disk write (SPEC §9.4).
+    fn update_prefs(&self, mutate: impl FnOnce(&mut Inner)) {
         let prefs = {
             let mut inner = self.write();
-            inner.prefs.notch_visible = visible;
+            mutate(&mut inner);
             inner.prefs.clone()
         };
         self.persist_prefs(&prefs);
+    }
+
+    pub fn set_notch_visible(&self, visible: bool) {
+        self.update_prefs(|inner| inner.prefs.notch_visible = visible);
     }
 
     pub fn set_notch_edge(&self, edge: NotchEdge) {
-        let prefs = {
-            let mut inner = self.write();
-            inner.prefs.notch_edge = edge;
-            inner.prefs.clone()
-        };
-        self.persist_prefs(&prefs);
+        self.update_prefs(|inner| inner.prefs.notch_edge = edge);
+    }
+
+    pub fn set_notch_animation(&self, animation: NotchAnimation) {
+        self.update_prefs(|inner| inner.prefs.notch_animation = animation);
+    }
+
+    /// `None` goes back to following the operating system.
+    pub fn set_language(&self, language: Option<Language>) {
+        self.update_prefs(|inner| inner.prefs.language = language);
+    }
+
+    pub fn set_autostart(&self, enabled: bool) {
+        self.update_prefs(|inner| inner.prefs.autostart = enabled);
+    }
+
+    pub fn set_auto_update(&self, enabled: bool) {
+        self.update_prefs(|inner| inner.prefs.auto_update = enabled);
     }
 
     pub fn set_primary(&self, id: ProviderId) {
-        let prefs = {
-            let mut inner = self.write();
+        self.update_prefs(|inner| {
             inner.prefs.primary = id;
             // Force the next tray redraw even if the number is the same.
             inner.last_face = None;
-            inner.prefs.clone()
-        };
-        self.persist_prefs(&prefs);
+        });
     }
 
     pub fn snapshot(&self, id: ProviderId) -> Option<ProviderSnapshot> {
@@ -241,8 +290,33 @@ impl AppState {
         self.refresh.notified().await;
     }
 
+    /// The provider whose number the tray icon shows.
+    ///
+    /// Normally the one the user picked. When that one has nothing to show — not
+    /// signed in, or still on its first fetch — the icon borrows the first
+    /// enabled provider that does have a reading, rather than sitting on a dash
+    /// while another provider has a perfectly good number. The tooltip names
+    /// whichever provider this returns, so the two can never disagree.
+    pub fn tray_provider(&self) -> ProviderId {
+        let inner = self.read();
+        Self::tray_provider_of(&inner)
+    }
+
+    fn tray_provider_of(inner: &Inner) -> ProviderId {
+        let has_reading = |id: ProviderId| {
+            inner.prefs.is_enabled(id)
+                && inner.snapshots.get(&id).and_then(ProviderSnapshot::primary_window).is_some()
+        };
+
+        let primary = inner.prefs.primary;
+        if has_reading(primary) {
+            return primary;
+        }
+        ProviderId::ALL.into_iter().find(|id| has_reading(*id)).unwrap_or(primary)
+    }
+
     fn face(&self, inner: &Inner) -> TrayFace {
-        let id = inner.prefs.primary;
+        let id = Self::tray_provider_of(inner);
         if !inner.prefs.is_enabled(id) {
             return TrayFace { percent: None, band: Band::Off, dimmed: false };
         }
@@ -296,5 +370,79 @@ mod tests {
     #[test]
     fn zero_consecutive_still_waits_the_base_delay() {
         assert_eq!(backoff_delay(0, None).as_secs(), 60);
+    }
+
+    fn snapshot_of(provider: ProviderId) -> ProviderSnapshot {
+        ProviderSnapshot {
+            provider,
+            fidelity: Fidelity::Official,
+            windows: vec![crate::model::LimitWindow {
+                id: "session".into(),
+                label: "Session".into(),
+                used_fraction: 0.4,
+                resets_at: None,
+            }],
+            fetched_at: Utc::now(),
+            account: None,
+        }
+    }
+
+    fn inner_with(primary: ProviderId, readings: &[ProviderId]) -> Inner {
+        Inner {
+            prefs: Prefs { primary, ..Prefs::default() },
+            snapshots: readings.iter().map(|id| (*id, snapshot_of(*id))).collect(),
+            ..Inner::default()
+        }
+    }
+
+    #[test]
+    fn the_tray_shows_the_chosen_provider_whenever_it_has_a_reading() {
+        let inner = inner_with(ProviderId::Claude, &[ProviderId::Claude, ProviderId::Cursor]);
+        assert_eq!(AppState::tray_provider_of(&inner), ProviderId::Claude);
+    }
+
+    #[test]
+    fn the_tray_borrows_another_provider_rather_than_showing_a_dash() {
+        // The real case here: Claude is picked but has no subscription login,
+        // while Cursor is reporting fine.
+        let inner = inner_with(ProviderId::Claude, &[ProviderId::Cursor]);
+        assert_eq!(AppState::tray_provider_of(&inner), ProviderId::Cursor);
+    }
+
+    #[test]
+    fn with_no_reading_anywhere_the_tray_stays_on_the_chosen_provider() {
+        let inner = inner_with(ProviderId::Cursor, &[]);
+        assert_eq!(AppState::tray_provider_of(&inner), ProviderId::Cursor);
+    }
+
+    #[test]
+    fn a_disabled_provider_is_never_borrowed() {
+        let mut inner = inner_with(ProviderId::Claude, &[ProviderId::Cursor]);
+        inner.prefs.enabled.insert(ProviderId::Cursor, false);
+        assert_eq!(AppState::tray_provider_of(&inner), ProviderId::Claude);
+    }
+
+    #[test]
+    fn a_demo_fixture_left_in_the_cache_is_discarded_on_a_real_launch() {
+        // This happened for real: a demo run from before the no-persist guard
+        // left `manual` snapshots in the store, and they would have been shown
+        // as if they came from the vendor.
+        let dir = std::env::temp_dir().join(format!("gaugecode-fixture-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::new(dir.clone());
+
+        let mut fixture = snapshot_of(ProviderId::Claude);
+        fixture.fidelity = Fidelity::Manual;
+        store.save_snapshots(&HashMap::from([
+            (ProviderId::Claude, fixture),
+            (ProviderId::Cursor, snapshot_of(ProviderId::Cursor)),
+        ]));
+
+        let kept = real_snapshots(&store);
+        assert_eq!(kept.keys().copied().collect::<Vec<_>>(), vec![ProviderId::Cursor]);
+        // And the cleaned cache is written back, so it stays gone.
+        assert_eq!(store.load_snapshots().len(), 1);
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

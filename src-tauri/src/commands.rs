@@ -5,13 +5,18 @@ use std::sync::Arc;
 
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::i18n::{fill, Language};
 use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus, SignInHint};
-use crate::notch;
+use crate::notch::{self, NotchAnimation, NotchEdge};
 use crate::providers::Registry;
 use crate::state::AppState;
 use crate::tray;
+
+/// Emitted whenever anything in [`PrefsView`] changes, so every window (notch,
+/// popup, settings) redraws together instead of drifting apart.
+pub const PREFS_EVENT: &str = "prefs:changed";
 
 /// Everything the UI needs about one provider, in one place.
 #[derive(Debug, Serialize)]
@@ -30,13 +35,36 @@ pub struct ProviderView {
     pub is_primary: bool,
 }
 
+/// The preferences the UI can see and change.
+#[derive(Debug, Clone, Serialize)]
+pub struct PrefsView {
+    /// The language actually in use, already resolved.
+    pub language: Language,
+    /// What the user picked; `null` means "follow the system".
+    pub language_override: Option<Language>,
+    pub primary: ProviderId,
+    pub notch_visible: bool,
+    pub notch_edge: NotchEdge,
+    pub notch_animation: NotchAnimation,
+    pub autostart: bool,
+    pub auto_update: bool,
+    /// True when running on fixtures, so the UI can say the numbers are fake.
+    pub demo: bool,
+    pub version: &'static str,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "key", rename_all = "snake_case")]
 pub enum PrefUpdate {
     ProviderEnabled { provider: ProviderId, enabled: bool },
     Primary { provider: ProviderId },
     NotchVisible { visible: bool },
-    NotchEdge { edge: notch::NotchEdge },
+    NotchEdge { edge: NotchEdge },
+    NotchAnimation { animation: NotchAnimation },
+    /// `null` goes back to following the operating system.
+    Language { language: Option<Language> },
+    Autostart { enabled: bool },
+    AutoUpdate { enabled: bool },
 }
 
 #[tauri::command]
@@ -68,6 +96,34 @@ pub fn get_state(
         .collect()
 }
 
+#[tauri::command]
+pub fn get_prefs(state: State<'_, Arc<AppState>>) -> PrefsView {
+    view_of(&state)
+}
+
+/// Announces the preferences to every window. Called at the end of `setup` as
+/// well, because a webview can load and ask for them before the state exists.
+pub fn publish_prefs(app: &AppHandle) {
+    let view = view_of(&app.state::<Arc<AppState>>());
+    let _ = app.emit(PREFS_EVENT, view);
+}
+
+fn view_of(state: &AppState) -> PrefsView {
+    let prefs = state.prefs();
+    PrefsView {
+        language: state.language(),
+        language_override: prefs.language,
+        primary: prefs.primary,
+        notch_visible: prefs.notch_visible,
+        notch_edge: prefs.notch_edge,
+        notch_animation: prefs.notch_animation,
+        autostart: prefs.autostart,
+        auto_update: prefs.auto_update,
+        demo: state.is_demo(),
+        version: env!("CARGO_PKG_VERSION"),
+    }
+}
+
 /// Asks every provider loop to fetch now. Returns a message when the primary
 /// provider is serving a rate-limit penalty, so the UI can say so instead of
 /// pretending the click did something.
@@ -75,8 +131,8 @@ pub fn get_state(
 pub fn refresh_now(state: State<'_, Arc<AppState>>) -> Option<String> {
     let primary = state.prefs().primary;
     if let Some(until) = state.backoff_until(primary) {
-        let local = until.with_timezone(&Local).format("%H:%M");
-        return Some(format!("Rate limited — waiting until {local}"));
+        let local = until.with_timezone(&Local).format("%H:%M").to_string();
+        return Some(fill(state.language().strings().rate_limited_until, &local));
     }
     state.request_refresh();
     None
@@ -96,17 +152,33 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
         PrefUpdate::Primary { provider } => state.set_primary(provider),
         PrefUpdate::NotchVisible { visible } => state.set_notch_visible(visible),
         PrefUpdate::NotchEdge { edge } => state.set_notch_edge(edge),
+        PrefUpdate::NotchAnimation { animation } => state.set_notch_animation(animation),
+        PrefUpdate::Language { language } => state.set_language(language),
+        PrefUpdate::Autostart { enabled } => {
+            // Ask the OS first: if registering the login item fails there is no
+            // point remembering a preference the machine will not honour.
+            match crate::autostart::apply(&app, enabled) {
+                Ok(()) => state.set_autostart(enabled),
+                Err(error) => tracing::warn!(%error, "could not change the autostart entry"),
+            }
+        }
+        PrefUpdate::AutoUpdate { enabled } => state.set_auto_update(enabled),
     }
+
     tray::update(&app);
     // The notch length depends on how many providers are on, and its position on
     // the chosen edge, so any of these changes has to re-anchor it.
     notch::apply(&app, app.state::<notch::NotchState>().mode());
+    let _ = app.emit(PREFS_EVENT, view_of(&state));
     state.request_refresh();
 }
 
+/// Taking `State` here is deliberate: Tauri turns unmanaged state into a clean
+/// command error, and the window recovers from the `prefs:changed` event that
+/// `setup` emits a moment later.
 #[tauri::command]
-pub fn get_notch(app: AppHandle) -> notch::NotchView {
-    notch::view(&app)
+pub fn get_notch(app: AppHandle, state: State<'_, Arc<AppState>>) -> notch::NotchView {
+    notch::view(&app, &state.prefs())
 }
 
 /// Clicking the notch pins it open; clicking again lets it fold back.

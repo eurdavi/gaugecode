@@ -17,14 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Network boundary (SPEC §10)
-        # Every network call and credential read must live in src-tauri/src/providers/.
-        # Manifests (Cargo.toml/Cargo.lock) are allowed to name the crate.
+      - name: Network and credential boundary (SPEC §10)
+        # Every network call and every credential read must live in
+        # src-tauri/src/providers/. Manifests may name the crates.
         run: |
           set -euo pipefail
           if grep -rEn --include='*.rs' --include='*.ts' --include='*.tsx' \
-               --exclude-dir=providers 'reqwest|fetch\(' src src-tauri/src; then
-            echo '::error::network call outside src-tauri/src/providers/'
+               --exclude-dir=providers \
+               'reqwest|fetch\(|rusqlite|security_framework' src src-tauri/src; then
+            echo '::error::network or credential access outside src-tauri/src/providers/'
             exit 1
           fi
           echo 'boundary ok'

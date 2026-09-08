@@ -97,7 +97,15 @@ fn parse_credential(raw: &str) -> Result<OauthCredential, ProviderError> {
 /// Diagnostic for when Anthropic changes the credential layout: logs the key
 /// **names** and their JSON types, never a value. Enough to fix the parser
 /// without anyone having to paste a token anywhere.
+///
+/// Once per process: the credential is re-read on every poll and on every
+/// `get_state`, and repeating this would bury everything else in the log.
 fn log_credential_shape(raw: &str) {
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+
     let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
         tracing::debug!("credential file is not valid json");
         return;

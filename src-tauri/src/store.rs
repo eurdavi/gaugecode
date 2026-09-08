@@ -16,8 +16,9 @@ use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Language;
 use crate::model::{ProviderId, ProviderSnapshot};
-use crate::notch::NotchEdge;
+use crate::notch::{NotchAnimation, NotchEdge};
 
 const SNAPSHOTS_FILE: &str = "snapshots.json";
 const BACKOFF_FILE: &str = "backoff.json";
@@ -40,17 +41,28 @@ pub struct Prefs {
     pub primary: ProviderId,
     pub notch_visible: bool,
     pub notch_edge: NotchEdge,
+    pub notch_animation: NotchAnimation,
+    /// `None` follows the operating system's language.
+    pub language: Option<Language>,
+    pub autostart: bool,
+    /// Whether the app may check for a signed update on launch.
+    pub auto_update: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        // M1 ships the Claude adapter only; Cursor and Codex stay off until M3.
-        let enabled = HashMap::from([(ProviderId::Claude, true)]);
+        // Every provider starts on: each one costs nothing until its credential
+        // is found, and a provider left off would look like a broken app.
+        let enabled = ProviderId::ALL.into_iter().map(|id| (id, true)).collect();
         Self {
             enabled,
             primary: ProviderId::Claude,
             notch_visible: true,
             notch_edge: NotchEdge::default(),
+            notch_animation: NotchAnimation::default(),
+            language: None,
+            autostart: false,
+            auto_update: true,
         }
     }
 }
@@ -58,6 +70,10 @@ impl Default for Prefs {
 impl Prefs {
     pub fn is_enabled(&self, id: ProviderId) -> bool {
         self.enabled.get(&id).copied().unwrap_or(false)
+    }
+
+    pub fn enabled_count(&self) -> u32 {
+        ProviderId::ALL.iter().filter(|id| self.is_enabled(**id)).count() as u32
     }
 }
 
@@ -190,13 +206,18 @@ mod tests {
     }
 
     #[test]
-    fn prefs_default_enables_claude_only() {
+    fn every_provider_starts_enabled_with_claude_on_the_tray() {
         let prefs = Prefs::default();
-        assert!(prefs.is_enabled(ProviderId::Claude));
-        assert!(!prefs.is_enabled(ProviderId::Cursor));
-        assert!(!prefs.is_enabled(ProviderId::Codex));
+        for id in ProviderId::ALL {
+            assert!(prefs.is_enabled(id), "{id:?} should start on");
+        }
+        assert_eq!(prefs.enabled_count(), 3);
         assert_eq!(prefs.primary, ProviderId::Claude);
         assert_eq!(prefs.notch_edge, NotchEdge::Right);
+        // No language means "whatever the OS is set to".
+        assert_eq!(prefs.language, None);
+        assert!(!prefs.autostart);
+        assert!(prefs.auto_update);
     }
 
     #[test]
@@ -208,8 +229,28 @@ mod tests {
             .unwrap();
         let prefs = store.load_prefs();
         assert!(prefs.is_enabled(ProviderId::Claude));
+        // Absent from the file, so the field defaults instead of failing the parse.
+        assert!(!prefs.is_enabled(ProviderId::Cursor));
         assert_eq!(prefs.notch_edge, NotchEdge::Right);
         assert!(prefs.notch_visible);
+        assert_eq!(prefs.notch_animation, NotchAnimation::Slide);
+        assert_eq!(prefs.language, None);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn prefs_round_trip_with_every_new_field_set() {
+        let (store, dir) = temp_store("full-prefs");
+        let prefs = Prefs {
+            language: Some(Language::BrazilianPortuguese),
+            notch_animation: NotchAnimation::Fade,
+            notch_edge: NotchEdge::Bottom,
+            autostart: true,
+            auto_update: false,
+            ..Default::default()
+        };
+        store.save_prefs(&prefs);
+        assert_eq!(store.load_prefs(), prefs);
         let _ = fs::remove_dir_all(dir);
     }
 }

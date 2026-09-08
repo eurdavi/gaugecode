@@ -78,19 +78,56 @@ export type PrefUpdate =
   | { key: "provider_enabled"; provider: ProviderId; enabled: boolean }
   | { key: "primary"; provider: ProviderId }
   | { key: "notch_visible"; visible: boolean }
-  | { key: "notch_edge"; edge: NotchEdge };
+  | { key: "notch_edge"; edge: NotchEdge }
+  | { key: "notch_animation"; animation: NotchAnimation }
+  /** `null` goes back to following the operating system. */
+  | { key: "language"; language: Language | null }
+  | { key: "autostart"; enabled: boolean }
+  | { key: "auto_update"; enabled: boolean };
 
-/** Mirror of `NotchEdge` / `NotchMode` / `NotchView` in `src-tauri/src/notch.rs`. */
+/** Mirror of `NotchEdge` / `NotchMode` / `NotchAnimation` in `src-tauri/src/notch.rs`. */
 export type NotchEdge = "right" | "left" | "top" | "bottom";
 
 export type NotchMode = "folded" | "peek" | "pinned";
+
+export type NotchAnimation = "slide" | "fade" | "instant";
+
+/** Mirror of `Language` in `src-tauri/src/i18n.rs`. */
+export type Language = "en" | "pt-BR" | "es";
 
 export interface NotchView {
   mode: NotchMode;
   edge: NotchEdge;
   visible: boolean;
+  animation: NotchAnimation;
+  /** CSS pixels; the sliver the pointer watch is waiting for. */
+  folded_thickness: number;
+  folded_length: number;
+}
+
+/** Mirror of `PrefsView` in `src-tauri/src/commands.rs`. */
+export interface PrefsView {
+  /** Already resolved: never null, unlike `language_override`. */
+  language: Language;
+  language_override: Language | null;
+  primary: ProviderId;
+  notch_visible: boolean;
+  notch_edge: NotchEdge;
+  notch_animation: NotchAnimation;
+  autostart: boolean;
+  auto_update: boolean;
+  demo: boolean;
+  version: string;
+}
+
+/** Mirror of `AvailableUpdate` in `src-tauri/src/updater.rs`. */
+export interface AvailableUpdate {
+  version: string;
+  notes: string | null;
 }
 
 export const SNAPSHOT_EVENT = "usage:snapshot";
 export const STATUS_EVENT = "usage:status";
 export const NOTCH_EVENT = "notch:state";
+export const PREFS_EVENT = "prefs:changed";
+export const UPDATE_EVENT = "update:available";
