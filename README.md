@@ -41,7 +41,7 @@ pnpm tauri dev
 
 Useful env vars:
 
-- `USAGE_NOTCH_DEMO=1` — fixtures only, no network, no credential reads (for recording demos).
+- `GAUGECODE_DEMO=1` — fixtures only, no network, no credential reads (for recording demos).
 - `RUST_LOG=gaugecode=debug` — verbose logs (still no tokens).
 
 Before marking a milestone done:
