@@ -153,10 +153,13 @@ impl ClassifyStr for serde_json::Error {
     }
 }
 
-#[cfg(target_os = "windows")]
+/// `~/.claude/.credentials.json` — plain text on Windows and Linux; on macOS the
+/// same JSON lives in the Keychain instead.
+#[cfg(not(target_os = "macos"))]
 fn read_credential() -> Result<OauthCredential, ProviderError> {
-    let Some(home) = std::env::var_os("USERPROFILE") else {
-        return Err(ProviderError::Io("USERPROFILE is not set".into()));
+    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"));
+    let Some(home) = home else {
+        return Err(ProviderError::Io("neither USERPROFILE nor HOME is set".into()));
     };
     let path = std::path::PathBuf::from(home).join(".claude").join(".credentials.json");
     let raw = match std::fs::read_to_string(&path) {
@@ -197,11 +200,6 @@ fn read_credential() -> Result<OauthCredential, ProviderError> {
         }
     }
     newest.ok_or(ProviderError::NeedsAuth)
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn read_credential() -> Result<OauthCredential, ProviderError> {
-    Err(ProviderError::Io("Claude credentials are only supported on Windows and macOS".into()))
 }
 
 // ---------------------------------------------------------------------------

@@ -12,11 +12,20 @@ use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus
 use crate::notch::{self, NotchAnimation, NotchEdge};
 use crate::providers::Registry;
 use crate::state::AppState;
+use crate::store;
 use crate::tray;
 
 /// Emitted whenever anything in [`PrefsView`] changes, so every window (notch,
 /// popup, settings) redraws together instead of drifting apart.
 pub const PREFS_EVENT: &str = "prefs:changed";
+
+/// One limit window as the per-provider gear offers it.
+#[derive(Debug, Serialize)]
+pub struct WindowChoice {
+    pub id: String,
+    pub label: String,
+    pub hidden: bool,
+}
 
 /// Everything the UI needs about one provider, in one place.
 #[derive(Debug, Serialize)]
@@ -26,7 +35,11 @@ pub struct ProviderView {
     pub enabled: bool,
     /// `None` means "no reading yet" — the UI shows a placeholder, not a zero.
     pub status: Option<ProviderStatus>,
+    /// Already filtered by the user's choices — this is what to draw.
     pub snapshot: Option<ProviderSnapshot>,
+    /// Every window the provider reported, hidden ones included, so the gear
+    /// can offer them back.
+    pub windows: Vec<WindowChoice>,
     pub account: Option<ProviderAccount>,
     pub sign_in_hint: Option<SignInHint>,
     pub manage_url: Option<&'static str>,
@@ -48,6 +61,14 @@ pub struct PrefsView {
     pub notch_animation: NotchAnimation,
     pub autostart: bool,
     pub auto_update: bool,
+    pub poll_seconds: u64,
+    /// Bounds the UI offers, so the slider cannot ask for something the Rust
+    /// side would clamp anyway.
+    pub poll_seconds_min: u64,
+    pub poll_seconds_max: u64,
+    /// False on Wayland, where an app cannot place its own window. The UI
+    /// explains it instead of offering a notch that would drift.
+    pub notch_supported: bool,
     /// True when running on fixtures, so the UI can say the numbers are fake.
     pub demo: bool,
     pub version: &'static str,
@@ -65,6 +86,9 @@ pub enum PrefUpdate {
     Language { language: Option<Language> },
     Autostart { enabled: bool },
     AutoUpdate { enabled: bool },
+    PollSeconds { seconds: u64 },
+    /// Shows or hides one limit window of one provider.
+    WindowHidden { provider: ProviderId, window: String, hidden: bool },
 }
 
 #[tauri::command]
@@ -79,12 +103,28 @@ pub fn get_state(
         .map(|id| {
             let provider = registry.get(id);
             let enabled = prefs.is_enabled(id);
+            let windows = state
+                .snapshot(id)
+                .map(|snapshot| {
+                    snapshot
+                        .windows
+                        .into_iter()
+                        .map(|window| WindowChoice {
+                            hidden: prefs.is_window_hidden(id, &window.id),
+                            id: window.id,
+                            label: window.label,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
             ProviderView {
                 id,
                 name: id.display_name(),
                 enabled,
                 status: state.status(id),
-                snapshot: state.snapshot(id),
+                snapshot: state.visible_snapshot(id),
+                windows,
                 // Reads the credential only; still no network on this path.
                 account: provider.filter(|_| enabled).and_then(|p| p.account()),
                 sign_in_hint: provider.map(|p| p.sign_in_hint()),
@@ -119,6 +159,10 @@ fn view_of(state: &AppState) -> PrefsView {
         notch_animation: prefs.notch_animation,
         autostart: prefs.autostart,
         auto_update: prefs.auto_update,
+        poll_seconds: prefs.poll_seconds,
+        poll_seconds_min: store::MIN_POLL_SECONDS,
+        poll_seconds_max: store::MAX_POLL_SECONDS,
+        notch_supported: notch::positioning_supported(),
         demo: state.is_demo(),
         version: env!("CARGO_PKG_VERSION"),
     }
@@ -163,6 +207,10 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
             }
         }
         PrefUpdate::AutoUpdate { enabled } => state.set_auto_update(enabled),
+        PrefUpdate::PollSeconds { seconds } => state.set_poll_seconds(seconds),
+        PrefUpdate::WindowHidden { provider, window, hidden } => {
+            state.set_window_hidden(provider, window, hidden)
+        }
     }
 
     tray::update(&app);

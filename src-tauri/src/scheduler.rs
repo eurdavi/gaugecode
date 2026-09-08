@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::model::{ProviderError, ProviderId, ProviderStatus};
 use crate::providers::Registry;
-use crate::state::{AppState, IDLE_POLL_INTERVAL, JITTER, POLL_INTERVAL};
+use crate::state::{AppState, JITTER};
 use crate::tray;
 
 pub const SNAPSHOT_EVENT: &str = "usage:snapshot";
@@ -67,8 +67,8 @@ async fn tick(app: &AppHandle, state: &Arc<AppState>, registry: &Arc<Registry>, 
         return;
     }
 
-    // Cursor and Codex have no adapter before M3: leave them without a reading
-    // rather than inventing one.
+    // A provider without an adapter in this build stays without a reading,
+    // rather than being given an invented one.
     let Some(provider) = registry.get(id) else { return };
 
     match provider.fetch_snapshot().await {
@@ -112,13 +112,11 @@ fn next_delay(state: &Arc<AppState>, id: ProviderId) -> Duration {
         let seconds = until.signed_duration_since(Utc::now()).num_seconds().max(1) as u64;
         return Duration::from_secs(seconds);
     }
-    if state.is_demo() {
-        return POLL_INTERVAL;
-    }
-    if provider_is_running(id) {
-        POLL_INTERVAL
+    let prefs = state.prefs();
+    if state.is_demo() || provider_is_running(id) {
+        prefs.poll_interval()
     } else {
-        IDLE_POLL_INTERVAL
+        prefs.idle_poll_interval()
     }
 }
 

@@ -77,9 +77,16 @@ fn state_db_path() -> Result<PathBuf, ProviderError> {
         .join("state.vscdb"))
 }
 
+/// Linux follows the XDG base directory spec, which Cursor honours.
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn state_db_path() -> Result<PathBuf, ProviderError> {
-    Err(ProviderError::Io("Cursor state is only supported on Windows and macOS".into()))
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")));
+    let Some(config) = config else {
+        return Err(ProviderError::Io("neither XDG_CONFIG_HOME nor HOME is set".into()));
+    };
+    Ok(config.join("Cursor").join("User").join("globalStorage").join("state.vscdb"))
 }
 
 /// Reads the four keys we care about from `ItemTable`.

@@ -1,108 +1,90 @@
 //! Tray icon drawn at runtime (SPEC §9.2).
 //!
-//! Tauri accepts raw RGBA through `Image::new_owned`, so this needs neither a
-//! PNG encoder nor a font rasterizer: the digits are a 3×5 bitmap defined right
-//! here, scaled to fill the canvas.
+//! Tauri accepts raw RGBA through `Image::new_owned`, so this needs no PNG
+//! encoder and no font: the icon is the GaugeCode mark itself — a ring whose
+//! arc fills with the usage and takes the band colour.
+//!
+//! Why a ring and not the percentage in digits: the tray icon is 16×16 points.
+//! Digits at that size read like a frame counter overlay, and there is no room
+//! for a number *and* a mark. A filling arc gives the same at-a-glance answer,
+//! the exact figure lives one hover away in the tooltip, and the icon still
+//! looks like an application rather than a debug readout.
 
 use crate::model::Band;
 
 pub const ICON_SIZE: u32 = 32;
-const GLYPH_W: u32 = 3;
-const GLYPH_H: u32 = 5;
-/// Keeps a 2 px margin on every side of the canvas.
-const MAX_EXTENT: u32 = 28;
+/// Leaves a 2 px margin, so the ring is not clipped by the tray's own padding.
+const RADIUS: f32 = 14.0;
+const STROKE: f32 = 4.0;
+/// Alpha of the unfilled part of the ring.
+const TRACK_ALPHA: u8 = 70;
 /// Alpha used for a stale or errored reading (SPEC §9.1: "esmaecido").
 const DIMMED_ALPHA: u8 = 140;
-
-type Glyph = [u8; GLYPH_H as usize];
-
-/// One row per line, three bits each, most significant bit leftmost.
-#[rustfmt::skip]
-const DIGITS: [Glyph; 10] = [
-    [0b111, 0b101, 0b101, 0b101, 0b111], // 0
-    [0b010, 0b110, 0b010, 0b010, 0b111], // 1
-    [0b111, 0b001, 0b111, 0b100, 0b111], // 2
-    [0b111, 0b001, 0b111, 0b001, 0b111], // 3
-    [0b101, 0b101, 0b111, 0b001, 0b001], // 4
-    [0b111, 0b100, 0b111, 0b001, 0b111], // 5
-    [0b111, 0b100, 0b111, 0b101, 0b111], // 6
-    [0b111, 0b001, 0b001, 0b001, 0b001], // 7
-    [0b111, 0b101, 0b111, 0b101, 0b111], // 8
-    [0b111, 0b101, 0b111, 0b001, 0b111], // 9
-];
-
-/// Drawn when there is no number to show. A dash is honest; a zero would not be.
-#[rustfmt::skip]
-const DASH: Glyph = [0b000, 0b000, 0b111, 0b000, 0b000];
-
-fn digits_of(percent: u8) -> Vec<usize> {
-    if percent == 0 {
-        return vec![0];
-    }
-    let mut digits = Vec::new();
-    let mut left = percent;
-    while left > 0 {
-        digits.push((left % 10) as usize);
-        left /= 10;
-    }
-    digits.reverse();
-    digits
-}
+/// Samples per pixel per axis. Nothing here is antialiased by a library, so the
+/// edges are smoothed by counting how much of each pixel falls inside the ring.
+const SAMPLES: u32 = 3;
 
 /// Returns RGBA bytes for a [`ICON_SIZE`]×[`ICON_SIZE`] icon.
 ///
+/// `percent` of `None` draws the bare track: no arc at all, because a zero-length
+/// arc and "nothing to report" must not look the same.
+///
 /// `template` renders in plain white so macOS can tint it for the current menu
-/// bar theme; on Windows the digits carry the band colour.
+/// bar theme; on Windows the arc carries the band colour.
 pub fn render(percent: Option<u8>, band: Band, dimmed: bool, template: bool) -> Vec<u8> {
     let mut rgba = vec![0u8; (ICON_SIZE * ICON_SIZE * 4) as usize];
 
-    let glyphs: Vec<Glyph> = match percent {
-        Some(percent) => digits_of(percent).into_iter().map(|digit| DIGITS[digit]).collect(),
-        None => vec![DASH],
-    };
-
-    let count = glyphs.len() as u32;
-    let unscaled_width = GLYPH_W * count + count.saturating_sub(1);
-    let scale = (MAX_EXTENT / unscaled_width).clamp(1, MAX_EXTENT / GLYPH_H);
-    let width = scale * unscaled_width;
-    let height = scale * GLYPH_H;
-    let origin_x = (ICON_SIZE - width.min(ICON_SIZE)) / 2;
-    let origin_y = (ICON_SIZE - height.min(ICON_SIZE)) / 2;
-
     let [red, green, blue] = if template { [0xff, 0xff, 0xff] } else { band.rgb() };
-    let alpha = if dimmed { DIMMED_ALPHA } else { 0xff };
+    let peak = if dimmed { DIMMED_ALPHA } else { 0xff };
+    let track = (TRACK_ALPHA as u32 * peak as u32 / 0xff) as u8;
+    let fraction = percent.map(|percent| percent.min(100) as f32 / 100.0);
 
-    for (index, glyph) in glyphs.iter().enumerate() {
-        let glyph_x = origin_x + index as u32 * scale * (GLYPH_W + 1);
-        for (row, bits) in glyph.iter().enumerate() {
-            for col in 0..GLYPH_W {
-                if bits & (1 << (GLYPH_W - 1 - col)) == 0 {
-                    continue;
+    let centre = ICON_SIZE as f32 / 2.0;
+    let (inner, outer) = (RADIUS - STROKE, RADIUS);
+
+    for y in 0..ICON_SIZE {
+        for x in 0..ICON_SIZE {
+            let (mut on_track, mut on_arc) = (0u32, 0u32);
+
+            for sy in 0..SAMPLES {
+                for sx in 0..SAMPLES {
+                    let px = x as f32 + (sx as f32 + 0.5) / SAMPLES as f32 - centre;
+                    let py = y as f32 + (sy as f32 + 0.5) / SAMPLES as f32 - centre;
+                    let distance = (px * px + py * py).sqrt();
+                    if distance < inner || distance > outer {
+                        continue;
+                    }
+                    on_track += 1;
+                    if fraction.is_some_and(|fraction| turn_at(px, py) <= fraction) {
+                        on_arc += 1;
+                    }
                 }
-                fill_block(
-                    &mut rgba,
-                    glyph_x + col * scale,
-                    origin_y + row as u32 * scale,
-                    scale,
-                    [red, green, blue, alpha],
-                );
             }
+
+            if on_track == 0 {
+                continue;
+            }
+            let total = SAMPLES * SAMPLES;
+            // The arc sits on top of the track, so coverage of each is weighted
+            // by how much of the pixel it actually covers.
+            let alpha = (on_arc * peak as u32 + (on_track - on_arc) * track as u32) / total;
+            let offset = ((y * ICON_SIZE + x) * 4) as usize;
+            rgba[offset..offset + 4].copy_from_slice(&[red, green, blue, alpha as u8]);
         }
     }
 
     rgba
 }
 
-fn fill_block(rgba: &mut [u8], x: u32, y: u32, size: u32, colour: [u8; 4]) {
-    for dy in 0..size {
-        for dx in 0..size {
-            let (px, py) = (x + dx, y + dy);
-            if px >= ICON_SIZE || py >= ICON_SIZE {
-                continue;
-            }
-            let offset = ((py * ICON_SIZE + px) * 4) as usize;
-            rgba[offset..offset + 4].copy_from_slice(&colour);
-        }
+/// Position around the ring as 0.0..1.0, starting at twelve o'clock and going
+/// clockwise — the direction every progress ring in the UI turns.
+fn turn_at(px: f32, py: f32) -> f32 {
+    let angle = px.atan2(-py);
+    let turn = angle / std::f32::consts::TAU;
+    if turn < 0.0 {
+        turn + 1.0
+    } else {
+        turn
     }
 }
 
@@ -110,8 +92,12 @@ fn fill_block(rgba: &mut [u8], x: u32, y: u32, size: u32, colour: [u8; 4]) {
 mod tests {
     use super::*;
 
-    fn opaque_pixels(rgba: &[u8]) -> usize {
-        rgba.chunks_exact(4).filter(|pixel| pixel[3] > 0).count()
+    fn ink(rgba: &[u8]) -> u32 {
+        rgba.chunks_exact(4).map(|pixel| pixel[3] as u32).sum()
+    }
+
+    fn strongest_alpha(rgba: &[u8]) -> u8 {
+        rgba.chunks_exact(4).map(|pixel| pixel[3]).max().unwrap()
     }
 
     #[test]
@@ -123,50 +109,81 @@ mod tests {
     }
 
     #[test]
-    fn digits_are_split_most_significant_first() {
-        assert_eq!(digits_of(0), vec![0]);
-        assert_eq!(digits_of(7), vec![7]);
-        assert_eq!(digits_of(42), vec![4, 2]);
-        assert_eq!(digits_of(100), vec![1, 0, 0]);
+    fn the_arc_grows_with_the_percentage() {
+        let at = |percent| ink(&render(Some(percent), Band::Ok, false, false));
+        assert!(at(0) < at(25), "0% should be almost all track");
+        assert!(at(25) < at(50));
+        assert!(at(50) < at(75));
+        assert!(at(75) < at(100));
     }
 
     #[test]
-    fn every_percent_fits_inside_the_canvas() {
-        // A pixel outside the canvas would be silently dropped by `fill_block`,
-        // so count the ink instead: 100 must draw more than a single dash.
-        for percent in 0..=100u8 {
-            let rgba = render(Some(percent), Band::Hot, false, false);
-            assert!(opaque_pixels(&rgba) > 0, "percent {percent} drew nothing");
-        }
-    }
-
-    #[test]
-    fn no_reading_draws_a_dash_not_a_zero() {
-        let dash = render(None, Band::Off, false, false);
+    fn no_reading_draws_the_bare_track_not_a_zero_arc() {
+        // Visually near-identical, but they must not be the same image: one
+        // means "nothing to report", the other means "you have used none of it".
+        let nothing = render(None, Band::Off, false, false);
         let zero = render(Some(0), Band::Ok, false, false);
-        assert_ne!(dash, zero);
-        assert!(opaque_pixels(&dash) < opaque_pixels(&zero));
+        assert_ne!(nothing, zero);
+        assert_eq!(strongest_alpha(&nothing), TRACK_ALPHA);
+    }
+
+    #[test]
+    fn the_ring_stays_inside_the_canvas_and_leaves_its_centre_clear() {
+        let rgba = render(Some(100), Band::Hot, false, false);
+        let alpha_at = |x: u32, y: u32| rgba[((y * ICON_SIZE + x) * 4 + 3) as usize];
+
+        // Corners and edges are outside a ring of radius 14 in a 32 px canvas.
+        for (x, y) in [(0, 0), (31, 0), (0, 31), (31, 31), (16, 0), (0, 16)] {
+            assert_eq!(alpha_at(x, y), 0, "ring reached ({x}, {y})");
+        }
+        // And the middle is a hole, which is what makes it read as a ring.
+        assert_eq!(alpha_at(16, 16), 0);
+    }
+
+    #[test]
+    fn half_used_fills_the_right_half_of_the_ring() {
+        let rgba = render(Some(50), Band::Ok, false, false);
+        let alpha_at = |x: u32, y: u32| rgba[((y * ICON_SIZE + x) * 4 + 3) as usize];
+        assert!(alpha_at(28, 16) > TRACK_ALPHA, "right side should be filled");
+        assert_eq!(alpha_at(3, 16), TRACK_ALPHA, "left side should still be track");
+    }
+
+    #[test]
+    fn the_arc_starts_at_the_top_and_turns_clockwise() {
+        // A small reading should have inked just clockwise of twelve o'clock,
+        // and nothing anticlockwise of it.
+        let rgba = render(Some(10), Band::Ok, false, false);
+        let alpha_at = |x: u32, y: u32| rgba[((y * ICON_SIZE + x) * 4 + 3) as usize];
+        assert!(alpha_at(18, 4) > TRACK_ALPHA, "just clockwise of the top should be filled");
+        assert_eq!(alpha_at(14, 4), TRACK_ALPHA, "anticlockwise of the top must stay track");
     }
 
     #[test]
     fn band_colour_reaches_the_pixels_and_template_is_white() {
         let hot = render(Some(88), Band::Hot, false, false);
-        let ink = hot.chunks_exact(4).find(|pixel| pixel[3] > 0).unwrap();
-        assert_eq!([ink[0], ink[1], ink[2]], Band::Hot.rgb());
+        let pixel = hot.chunks_exact(4).find(|pixel| pixel[3] > 0).unwrap();
+        assert_eq!([pixel[0], pixel[1], pixel[2]], Band::Hot.rgb());
 
         let template = render(Some(88), Band::Hot, false, true);
-        let ink = template.chunks_exact(4).find(|pixel| pixel[3] > 0).unwrap();
-        assert_eq!([ink[0], ink[1], ink[2]], [0xff, 0xff, 0xff]);
+        let pixel = template.chunks_exact(4).find(|pixel| pixel[3] > 0).unwrap();
+        assert_eq!([pixel[0], pixel[1], pixel[2]], [0xff, 0xff, 0xff]);
     }
 
     #[test]
     fn stale_readings_are_drawn_dimmed() {
         let fresh = render(Some(50), Band::Warn, false, false);
         let stale = render(Some(50), Band::Warn, true, false);
-        let alpha = |rgba: &[u8]| {
-            rgba.chunks_exact(4).find(|pixel| pixel[3] > 0).map(|pixel| pixel[3]).unwrap()
-        };
-        assert_eq!(alpha(&fresh), 0xff);
-        assert_eq!(alpha(&stale), DIMMED_ALPHA);
+        assert_eq!(strongest_alpha(&fresh), 0xff);
+        assert_eq!(strongest_alpha(&stale), DIMMED_ALPHA);
+        assert!(ink(&stale) < ink(&fresh));
+    }
+
+    #[test]
+    fn a_percentage_over_one_hundred_is_clamped_rather_than_wrapping() {
+        // A wrapped arc would read as a *lower* number than the truth.
+        assert_eq!(
+            render(Some(100), Band::Hot, false, false),
+            render(Some(255), Band::Hot, false, false)
+        );
     }
 }

@@ -230,6 +230,24 @@ impl Default for NotchState {
     }
 }
 
+/// Whether this session lets an application place its own window.
+///
+/// Wayland deliberately does not: a client cannot position itself, so
+/// `set_position` is accepted and ignored and the notch would land wherever the
+/// compositor felt like. Rather than ship an overlay that drifts, the UI says
+/// the notch needs an X11 session. Everything else works normally.
+pub fn positioning_supported() -> bool {
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session.eq_ignore_ascii_case("wayland") || std::env::var_os("WAYLAND_DISPLAY").is_some()
+        {
+            return false;
+        }
+    }
+    true
+}
+
 fn work_area_of(app: &AppHandle) -> Option<(Rect, f64)> {
     // Follow the monitor the pointer is on, falling back to the primary one.
     let monitor = app
@@ -278,7 +296,7 @@ pub fn apply(app: &AppHandle, mode: NotchMode) {
         }
     }
 
-    if !prefs.notch_visible {
+    if !prefs.notch_visible || !positioning_supported() {
         let _ = window.hide();
         emit(app, view_of(&prefs, mode, false));
         return;
@@ -341,7 +359,7 @@ pub fn spawn_pointer_watch(app: &AppHandle) {
 
 fn tick(app: &AppHandle) {
     let prefs = app.state::<Arc<AppState>>().prefs();
-    if !prefs.notch_visible {
+    if !prefs.notch_visible || !positioning_supported() {
         return;
     }
 

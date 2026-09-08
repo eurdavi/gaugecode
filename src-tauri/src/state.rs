@@ -13,10 +13,8 @@ use crate::model::{Band, Fidelity, ProviderId, ProviderSnapshot, ProviderStatus}
 use crate::notch::{NotchAnimation, NotchEdge};
 use crate::store::{BackoffRecord, Prefs, Store};
 
-/// Polling cadence while the provider's tool is running.
-pub const POLL_INTERVAL: Duration = Duration::from_secs(60);
-/// Cadence when no process of that tool is found.
-pub const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
+// The polling cadence is a preference now: see `Prefs::poll_interval` and
+// `Prefs::idle_poll_interval`, both clamped so no setting can hammer a vendor.
 pub const BACKOFF_BASE: Duration = Duration::from_secs(60);
 pub const BACKOFF_CAP: Duration = Duration::from_secs(15 * 60);
 /// Spread between providers so the three never fire in the same second.
@@ -211,6 +209,26 @@ impl AppState {
         self.update_prefs(|inner| inner.prefs.auto_update = enabled);
     }
 
+    pub fn set_poll_seconds(&self, seconds: u64) {
+        self.update_prefs(|inner| inner.prefs.poll_seconds = seconds);
+    }
+
+    /// Shows or hides one limit window. The tray may need a redraw because the
+    /// headline window can change.
+    pub fn set_window_hidden(&self, id: ProviderId, window_id: String, hidden: bool) {
+        self.update_prefs(|inner| {
+            let entry = inner.prefs.hidden_windows.entry(id).or_default();
+            if hidden {
+                if !entry.contains(&window_id) {
+                    entry.push(window_id);
+                }
+            } else {
+                entry.retain(|existing| existing != &window_id);
+            }
+            inner.last_face = None;
+        });
+    }
+
     pub fn set_primary(&self, id: ProviderId) {
         self.update_prefs(|inner| {
             inner.prefs.primary = id;
@@ -221,6 +239,31 @@ impl AppState {
 
     pub fn snapshot(&self, id: ProviderId) -> Option<ProviderSnapshot> {
         self.read().snapshots.get(&id).cloned()
+    }
+
+    /// The snapshot as the user chose to see it, with hidden windows removed.
+    ///
+    /// The filter lives here rather than in the UI so the tray, the notch and
+    /// the popup can never disagree about which window is the headline one.
+    /// Hiding every window would leave nothing to draw, so that degenerate case
+    /// is ignored and the full snapshot comes back.
+    pub fn visible_snapshot(&self, id: ProviderId) -> Option<ProviderSnapshot> {
+        let inner = self.read();
+        Self::visible_snapshot_of(&inner, id)
+    }
+
+    fn visible_snapshot_of(inner: &Inner, id: ProviderId) -> Option<ProviderSnapshot> {
+        let mut snapshot = inner.snapshots.get(&id).cloned()?;
+        let kept: Vec<_> = snapshot
+            .windows
+            .iter()
+            .filter(|window| !inner.prefs.is_window_hidden(id, &window.id))
+            .cloned()
+            .collect();
+        if !kept.is_empty() {
+            snapshot.windows = kept;
+        }
+        Some(snapshot)
     }
 
     pub fn status(&self, id: ProviderId) -> Option<ProviderStatus> {
@@ -305,7 +348,9 @@ impl AppState {
     fn tray_provider_of(inner: &Inner) -> ProviderId {
         let has_reading = |id: ProviderId| {
             inner.prefs.is_enabled(id)
-                && inner.snapshots.get(&id).and_then(ProviderSnapshot::primary_window).is_some()
+                && Self::visible_snapshot_of(inner, id)
+                    .and_then(|snapshot| snapshot.primary_window().cloned())
+                    .is_some()
         };
 
         let primary = inner.prefs.primary;
@@ -320,7 +365,9 @@ impl AppState {
         if !inner.prefs.is_enabled(id) {
             return TrayFace { percent: None, band: Band::Off, dimmed: false };
         }
-        let Some(window) = inner.snapshots.get(&id).and_then(ProviderSnapshot::primary_window) else {
+        let window = Self::visible_snapshot_of(inner, id)
+            .and_then(|snapshot| snapshot.primary_window().cloned());
+        let Some(window) = window else {
             return TrayFace { percent: None, band: Band::Off, dimmed: false };
         };
         let percent = (window.used_fraction * 100.0).round().clamp(0.0, 100.0) as u8;

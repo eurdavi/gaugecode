@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
@@ -47,7 +48,18 @@ pub struct Prefs {
     pub autostart: bool,
     /// Whether the app may check for a signed update on launch.
     pub auto_update: bool,
+    /// How often to poll while the tool is open. Clamped by [`Prefs::poll_interval`].
+    pub poll_seconds: u64,
+    /// Limit windows the user chose to hide, per provider. Hiding is by window
+    /// id, so a window the provider stops reporting simply stops being hidden.
+    pub hidden_windows: HashMap<ProviderId, Vec<String>>,
 }
+
+/// Anything faster than this is a good way to earn a 429 (SPEC §8).
+pub const MIN_POLL_SECONDS: u64 = 30;
+pub const MAX_POLL_SECONDS: u64 = 900;
+/// The cadence the vendors' own clients use, and what SPEC §8 specifies.
+pub const DEFAULT_POLL_SECONDS: u64 = 60;
 
 impl Default for Prefs {
     fn default() -> Self {
@@ -63,6 +75,8 @@ impl Default for Prefs {
             language: None,
             autostart: false,
             auto_update: true,
+            poll_seconds: DEFAULT_POLL_SECONDS,
+            hidden_windows: HashMap::new(),
         }
     }
 }
@@ -74,6 +88,24 @@ impl Prefs {
 
     pub fn enabled_count(&self) -> u32 {
         ProviderId::ALL.iter().filter(|id| self.is_enabled(**id)).count() as u32
+    }
+
+    /// Clamped so a hand-edited `prefs.json` cannot turn the app into something
+    /// that hammers a vendor's endpoint.
+    pub fn poll_interval(&self) -> Duration {
+        Duration::from_secs(self.poll_seconds.clamp(MIN_POLL_SECONDS, MAX_POLL_SECONDS))
+    }
+
+    /// Cadence when the tool is not running: five times slower, but never under
+    /// the five minutes SPEC §8 asks for.
+    pub fn idle_poll_interval(&self) -> Duration {
+        Duration::from_secs((self.poll_seconds.saturating_mul(5)).clamp(300, MAX_POLL_SECONDS))
+    }
+
+    pub fn is_window_hidden(&self, id: ProviderId, window_id: &str) -> bool {
+        self.hidden_windows
+            .get(&id)
+            .is_some_and(|hidden| hidden.iter().any(|entry| entry == window_id))
     }
 }
 
