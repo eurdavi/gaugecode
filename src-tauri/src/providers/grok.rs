@@ -67,8 +67,15 @@ impl Credential {
 
 /// An entry belongs to the public endpoint if its map key or its `oidc_issuer`
 /// names xAI's own issuer. Anything else is a customer IdP token.
+///
+/// The map key is `issuer::client_id`, so the issuer is only the part before
+/// the separator. Matching on a bare prefix instead would accept
+/// `https://auth.x.ai.evil.example::grok-cli`, whose issuer is a different
+/// domain entirely — and this filter is the only thing keeping such a token
+/// from being sent to xAI's public endpoint.
 fn is_trusted(map_key: &str, entry: &AuthEntry) -> bool {
-    map_key.starts_with(TRUSTED_ISSUER)
+    let issuer_from_key = map_key.split_once("::").map(|(issuer, _)| issuer);
+    issuer_from_key == Some(TRUSTED_ISSUER)
         || entry.oidc_issuer.as_deref() == Some(TRUSTED_ISSUER)
 }
 
@@ -466,17 +473,40 @@ mod tests {
         ));
     }
 
+    fn bare() -> AuthEntry {
+        AuthEntry { key: None, expires_at: None, email: None, oidc_issuer: None }
+    }
+
     #[test]
     fn an_entry_is_trusted_by_its_map_key_or_by_its_issuer_field() {
-        let bare = AuthEntry { key: None, expires_at: None, email: None, oidc_issuer: None };
-        assert!(is_trusted("https://auth.x.ai::grok-cli", &bare));
-        assert!(!is_trusted("https://sso.acme.example::grok-cli", &bare));
+        assert!(is_trusted("https://auth.x.ai::grok-cli", &bare()));
+        assert!(!is_trusted("https://sso.acme.example::grok-cli", &bare()));
 
-        let with_issuer = AuthEntry {
-            oidc_issuer: Some(TRUSTED_ISSUER.to_string()),
-            ..AuthEntry { key: None, expires_at: None, email: None, oidc_issuer: None }
-        };
+        let with_issuer = AuthEntry { oidc_issuer: Some(TRUSTED_ISSUER.into()), ..bare() };
         assert!(is_trusted("anything", &with_issuer));
+    }
+
+    #[test]
+    fn an_issuer_that_only_looks_like_xai_is_not_trusted() {
+        // The map key is `issuer::client_id`, so anything that extends the
+        // domain is a different issuer — and its token belongs to someone
+        // else's proxy, not to xAI's public endpoint.
+        for key in [
+            "https://auth.x.ai.evil.example::grok-cli",
+            "https://auth.x.ai.evil.example::",
+            "https://auth.x.aievil.example::grok-cli",
+            "https://auth.x.ai@evil.example::grok-cli",
+            "https://auth.x.ai/../evil::grok-cli",
+        ] {
+            assert!(!is_trusted(key, &bare()), "{key} should not be trusted");
+        }
+
+        // A near-miss in the field form, too.
+        let almost = AuthEntry {
+            oidc_issuer: Some("https://auth.x.ai.evil.example".into()),
+            ..bare()
+        };
+        assert!(!is_trusted("https://sso.acme.example::grok-cli", &almost));
     }
 
     #[test]

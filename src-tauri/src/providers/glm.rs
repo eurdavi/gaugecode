@@ -62,9 +62,14 @@ fn console_for_host(host: &str) -> Option<&'static str> {
 }
 
 /// Host of a URL, without pulling in a URL parser for one field.
+///
+/// The separator set has to include `\`: the URL standard treats it as
+/// equivalent to `/` for special schemes, and leaving it out let
+/// `https://evil.example\api.z.ai` read as a host ending in `.z.ai` and pass
+/// [`console_for_host`].
 fn host_of(url: &str) -> Option<String> {
     let rest = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
-    let authority = rest.split(['/', '?', '#']).next()?;
+    let authority = rest.split(['/', '\\', '?', '#']).next()?;
     let host = authority.rsplit_once('@').map(|(_, host)| host).unwrap_or(authority);
     let host = host.split_once(':').map(|(host, _)| host).unwrap_or(host);
     (!host.is_empty()).then(|| host.to_ascii_lowercase())
@@ -542,6 +547,49 @@ mod tests {
         assert_eq!(console_for_host("x.bigmodel.cn"), Some(CONSOLE_CHINA));
         // A non-Z.ai host means the key is not a GLM key at all.
         assert_eq!(console_for_host("api.anthropic.com"), None);
+    }
+
+    #[test]
+    fn a_base_url_that_merely_looks_like_zai_does_not_claim_the_token() {
+        // This allowlist is what decides whether a token found in Claude Code's
+        // settings is a Z.ai plan key at all. A host that only *resembles*
+        // z.ai must not pass, or somebody's Anthropic key would be sent to
+        // Z.ai's console. (The request URL itself is a hardcoded constant, so
+        // this cannot redirect the token to the crafted host — the risk is
+        // claiming the wrong token, not sending it somewhere new.)
+        let hostile = [
+            // Suffix that merely *contains* the domain.
+            "https://api.z.ai.evil.example/v1",
+            "https://evil.example/api.z.ai",
+            // Userinfo trick: the real host is after the @.
+            "https://api.z.ai@evil.example/v1",
+            // Not a subdomain, just a prefix.
+            "https://z.ai.evil.example",
+            "https://notz.ai",
+            "https://bigmodel.cn.evil.example",
+            // Backslash, which some parsers treat as a separator.
+            "https://evil.example\\api.z.ai",
+            // No scheme at all.
+            "evil.example/api.z.ai",
+        ];
+        for url in hostile {
+            let console = host_of(url).and_then(|host| console_for_host(&host));
+            assert_eq!(console, None, "{url} was accepted as a Z.ai console");
+        }
+
+        // And the shapes that must keep working.
+        for url in [
+            "https://api.z.ai",
+            "https://api.z.ai/api/anthropic",
+            "https://gateway.z.ai/v1",
+            "https://open.bigmodel.cn/api/paas/v4",
+            "HTTPS://API.Z.AI/",
+        ] {
+            assert!(
+                host_of(url).and_then(|host| console_for_host(&host)).is_some(),
+                "{url} should be accepted"
+            );
+        }
     }
 
     #[test]
