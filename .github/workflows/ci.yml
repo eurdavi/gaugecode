@@ -45,6 +45,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-i18n-encoding.cjs
       - run: pnpm tsc --noEmit
 
   build:

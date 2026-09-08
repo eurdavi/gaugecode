@@ -5,6 +5,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { LANGUAGES, connectSteps, windowLabel, type Messages } from "../i18n";
 import { describeStatus, setPref, useMessages, usePrefs, useProviders } from "../lib/usage";
 import { Onboarding } from "./Onboarding";
+import { CreditFooter } from "./CreditFooter";
+import { SupportButton } from "./SupportButton";
 import {
   UPDATE_EVENT,
   type AvailableUpdate,
@@ -547,14 +549,18 @@ export function Settings() {
         {prefs && <UpdateSection prefs={prefs} messages={messages} />}
       </Section>
 
-      <footer className="mt-5 text-[11px] text-neutral-400 dark:text-neutral-500">
-        <button
-          type="button"
-          className="underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
-          onClick={() => void openUrl(README_ANCHOR)}
-        >
-          {messages.settings.howItWorks}
-        </button>
+      <footer className="mt-6 space-y-3">
+        <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-400 dark:text-neutral-500">
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
+            onClick={() => void openUrl(README_ANCHOR)}
+          >
+            {messages.settings.howItWorks}
+          </button>
+          <SupportButton label={messages.settings.buyCoffee} />
+        </div>
+        <CreditFooter credit={messages.settings.credit} />
       </footer>
     </main>
   );

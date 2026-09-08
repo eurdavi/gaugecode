@@ -2,6 +2,8 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { refreshNow, useMessages, usePrefs, useProviders } from "../lib/usage";
 import { ProviderCard } from "./ProviderCard";
+import { CreditFooter } from "./CreditFooter";
+import { SupportButton } from "./SupportButton";
 
 /** Popup anchored to the tray icon (SPEC §9.2). */
 export function TrayPopup() {
@@ -40,6 +42,7 @@ export function TrayPopup() {
           >
             {messages.app.settings}
           </button>
+          <SupportButton label={messages.settings.buyCoffee} compact />
         </div>
       </header>
 
@@ -62,6 +65,10 @@ export function TrayPopup() {
           </div>
         )}
       </div>
+
+      <footer className="border-t border-neutral-200 px-4 py-2 dark:border-neutral-800">
+        <CreditFooter credit={messages.settings.credit} />
+      </footer>
     </main>
   );
 }
