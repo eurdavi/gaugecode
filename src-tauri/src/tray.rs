@@ -24,6 +24,7 @@ const REOPEN_GUARD: Duration = Duration::from_millis(300);
 
 pub struct TrayState {
     refresh_item: MenuItem<Wry>,
+    notch_item: MenuItem<Wry>,
     last_hidden: Mutex<Option<Instant>>,
 }
 
@@ -45,6 +46,7 @@ impl TrayState {
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let refresh_item = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
+    let notch_item = MenuItem::with_id(app, "notch", "Hide notch", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit GaugeCode", true, None::<&str>)?;
     let first_separator = PredefinedMenuItem::separator(app)?;
@@ -54,6 +56,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         app,
         &[
             &refresh_item as &dyn IsMenuItem<Wry>,
+            &notch_item,
             &first_separator,
             &settings_item,
             &second_separator,
@@ -61,7 +64,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    app.manage(TrayState { refresh_item, last_hidden: Mutex::new(None) });
+    app.manage(TrayState { refresh_item, notch_item, last_hidden: Mutex::new(None) });
 
     let initial = icon::render(None, crate::model::Band::Off, false, cfg!(target_os = "macos"));
 
@@ -74,6 +77,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "refresh" => {
                 app.state::<Arc<AppState>>().request_refresh();
+            }
+            "notch" => {
+                let state = app.state::<Arc<AppState>>();
+                let visible = !state.prefs().notch_visible;
+                state.set_notch_visible(visible);
+                crate::notch::apply(app, crate::notch::NotchMode::Folded);
+                update(app);
             }
             "settings" => show_settings(app),
             "quit" => app.exit(0),
@@ -144,8 +154,12 @@ pub fn update(app: &AppHandle) {
         let _ = tray.set_tooltip(Some(tooltip(&state)));
     }
 
-    let primary = state.prefs().primary;
+    let prefs = state.prefs();
+    let primary = prefs.primary;
     let tray_state = app.state::<TrayState>();
+    let _ = tray_state
+        .notch_item
+        .set_text(if prefs.notch_visible { "Hide notch" } else { "Show notch" });
     match state.backoff_until(primary) {
         Some(until) => {
             let local = until.with_timezone(&Local).format("%H:%M");

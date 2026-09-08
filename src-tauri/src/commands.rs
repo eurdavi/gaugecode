@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus, SignInHint};
+use crate::notch;
 use crate::providers::Registry;
 use crate::state::AppState;
 use crate::tray;
@@ -34,6 +35,8 @@ pub struct ProviderView {
 pub enum PrefUpdate {
     ProviderEnabled { provider: ProviderId, enabled: bool },
     Primary { provider: ProviderId },
+    NotchVisible { visible: bool },
+    NotchEdge { edge: notch::NotchEdge },
 }
 
 #[tauri::command]
@@ -91,9 +94,29 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
             state.set_provider_enabled(provider, enabled);
         }
         PrefUpdate::Primary { provider } => state.set_primary(provider),
+        PrefUpdate::NotchVisible { visible } => state.set_notch_visible(visible),
+        PrefUpdate::NotchEdge { edge } => state.set_notch_edge(edge),
     }
     tray::update(&app);
+    // The notch length depends on how many providers are on, and its position on
+    // the chosen edge, so any of these changes has to re-anchor it.
+    notch::apply(&app, app.state::<notch::NotchState>().mode());
     state.request_refresh();
+}
+
+#[tauri::command]
+pub fn get_notch(app: AppHandle) -> notch::NotchView {
+    notch::view(&app)
+}
+
+/// Clicking the notch pins it open; clicking again lets it fold back.
+#[tauri::command]
+pub fn toggle_notch_pin(app: AppHandle) {
+    let next = match app.state::<notch::NotchState>().mode() {
+        notch::NotchMode::Pinned => notch::NotchMode::Folded,
+        _ => notch::NotchMode::Pinned,
+    };
+    notch::apply(&app, next);
 }
 
 #[tauri::command]

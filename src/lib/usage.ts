@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  NOTCH_EVENT,
   SNAPSHOT_EVENT,
   STATUS_EVENT,
   type Band,
   type LimitWindow,
+  type NotchView,
   type PrefUpdate,
   type ProviderSnapshot,
   type ProviderStatus,
@@ -60,6 +62,28 @@ export async function refreshNow(): Promise<string | null> {
 
 export async function setPref(update: PrefUpdate): Promise<void> {
   await invoke("set_pref", { update });
+}
+
+/**
+ * Follows the notch mode Rust decides (pointer watch, tray toggle, edge
+ * change). The UI only draws it; it never moves the window itself.
+ */
+export function useNotch() {
+  const [notch, setNotch] = useState<NotchView | null>(null);
+
+  useEffect(() => {
+    void invoke<NotchView>("get_notch").then(setNotch);
+    const unlisten = listen<NotchView>(NOTCH_EVENT, ({ payload }) => setNotch(payload));
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  return notch;
+}
+
+export async function toggleNotchPin(): Promise<void> {
+  await invoke("toggle_notch_pin");
 }
 
 export function bandOf(usedFraction: number): Band {

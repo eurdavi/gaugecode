@@ -17,6 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{ProviderId, ProviderSnapshot};
+use crate::notch::NotchEdge;
 
 const SNAPSHOTS_FILE: &str = "snapshots.json";
 const BACKOFF_FILE: &str = "backoff.json";
@@ -37,13 +38,20 @@ pub struct Prefs {
     pub enabled: HashMap<ProviderId, bool>,
     /// Provider whose session percentage is drawn on the tray icon.
     pub primary: ProviderId,
+    pub notch_visible: bool,
+    pub notch_edge: NotchEdge,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
         // M1 ships the Claude adapter only; Cursor and Codex stay off until M3.
         let enabled = HashMap::from([(ProviderId::Claude, true)]);
-        Self { enabled, primary: ProviderId::Claude }
+        Self {
+            enabled,
+            primary: ProviderId::Claude,
+            notch_visible: true,
+            notch_edge: NotchEdge::default(),
+        }
     }
 }
 
@@ -188,5 +196,20 @@ mod tests {
         assert!(!prefs.is_enabled(ProviderId::Cursor));
         assert!(!prefs.is_enabled(ProviderId::Codex));
         assert_eq!(prefs.primary, ProviderId::Claude);
+        assert_eq!(prefs.notch_edge, NotchEdge::Right);
+    }
+
+    #[test]
+    fn prefs_written_before_the_notch_existed_still_load() {
+        // `#[serde(default)]` keeps an old prefs.json readable instead of
+        // throwing away the user's provider choices.
+        let (store, dir) = temp_store("old-prefs");
+        fs::write(dir.join(PREFS_FILE), br#"{"enabled":{"claude":true},"primary":"claude"}"#)
+            .unwrap();
+        let prefs = store.load_prefs();
+        assert!(prefs.is_enabled(ProviderId::Claude));
+        assert_eq!(prefs.notch_edge, NotchEdge::Right);
+        assert!(prefs.notch_visible);
+        let _ = fs::remove_dir_all(dir);
     }
 }

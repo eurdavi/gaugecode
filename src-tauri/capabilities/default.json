@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Baseline capability for the tray popup and the settings window. The notch window is added in M2.",
-  "windows": ["popup", "settings"],
+  "description": "Baseline capability for the notch overlay, the tray popup and the settings window.",
+  "windows": ["notch", "popup", "settings"],
   "permissions": [
     "core:default",
     "opener:default",

@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod icon;
 pub mod model;
+pub mod notch;
 pub mod providers;
 pub mod scheduler;
 pub mod state;
@@ -45,6 +46,8 @@ pub fn run() {
             commands::set_pref,
             commands::open_settings,
             commands::hide_popup,
+            commands::get_notch,
+            commands::toggle_notch_pin,
         ])
         .on_window_event(|window, event| match event {
             // Closing a window in a tray app means "put it away", not "quit".
@@ -73,10 +76,13 @@ pub fn run() {
             let state = Arc::new(AppState::load(Store::new(dir), demo));
             app.manage(state);
             app.manage(Arc::new(Registry::new(demo)));
+            app.manage(notch::NotchState::new());
 
             let handle = app.handle().clone();
             tray::build(&handle)?;
             tray::update(&handle);
+            notch::apply(&handle, notch::NotchMode::Folded);
+            notch::spawn_pointer_watch(&handle);
             scheduler::spawn(&handle);
 
             Ok(())

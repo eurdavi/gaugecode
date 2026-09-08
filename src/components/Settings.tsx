@@ -1,6 +1,13 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { describeStatus, setPref, useProviders } from "../lib/usage";
-import type { ProviderView, SignInHint } from "../types/usage";
+import { describeStatus, setPref, useNotch, useProviders } from "../lib/usage";
+import type { NotchEdge, ProviderView, SignInHint } from "../types/usage";
+
+const EDGES: { value: NotchEdge; label: string }[] = [
+  { value: "top", label: "Top" },
+  { value: "bottom", label: "Bottom" },
+  { value: "left", label: "Left" },
+  { value: "right", label: "Right" },
+];
 
 function hintText(hint: SignInHint | null): string | null {
   if (!hint) return null;
@@ -73,6 +80,55 @@ function ProviderRow({ view, onChanged }: { view: ProviderView; onChanged: () =>
   );
 }
 
+/** Show/hide the overlay and pick the screen edge it hugs (SPEC §9.1). */
+function NotchSection() {
+  const notch = useNotch();
+
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900">
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">Show the notch overlay</span>
+        <input
+          type="checkbox"
+          className="size-4 accent-neutral-700"
+          checked={notch?.visible ?? false}
+          disabled={notch === null}
+          onChange={(event) => {
+            void setPref({ key: "notch_visible", visible: event.currentTarget.checked });
+          }}
+        />
+      </label>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Screen edge</span>
+        <div className="flex gap-1">
+          {EDGES.map((edge) => (
+            <button
+              key={edge.value}
+              type="button"
+              disabled={notch === null || !notch.visible}
+              aria-pressed={notch?.edge === edge.value}
+              className={`rounded-md px-2 py-1 text-[11px] disabled:opacity-40 ${
+                notch?.edge === edge.value
+                  ? "bg-neutral-800 text-neutral-50 dark:bg-neutral-100 dark:text-neutral-900"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              }`}
+              onClick={() => void setPref({ key: "notch_edge", edge: edge.value })}
+            >
+              {edge.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+        Folded it is click-through and sits inside the work area, so it never covers the taskbar or
+        the Dock. Point at it to peek; click to keep it open.
+      </p>
+    </div>
+  );
+}
+
 export function Settings() {
   const { providers, reload } = useProviders();
 
@@ -103,6 +159,16 @@ export function Settings() {
             ))
           )}
         </ul>
+      </section>
+
+      <section aria-labelledby="notch-heading" className="mt-5">
+        <h2
+          id="notch-heading"
+          className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+        >
+          Notch
+        </h2>
+        <NotchSection />
       </section>
 
       <footer className="mt-5 text-[11px] text-neutral-400 dark:text-neutral-500">

@@ -9,6 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::model::{Band, ProviderId, ProviderSnapshot, ProviderStatus};
+use crate::notch::NotchEdge;
 use crate::store::{BackoffRecord, Prefs, Store};
 
 /// Polling cadence while the provider's tool is running.
@@ -135,6 +136,24 @@ impl AppState {
             let backoff = inner.backoff.clone();
             self.persist_snapshots(&snapshots);
             self.persist_backoff(&backoff);
+            inner.prefs.clone()
+        };
+        self.persist_prefs(&prefs);
+    }
+
+    pub fn set_notch_visible(&self, visible: bool) {
+        let prefs = {
+            let mut inner = self.write();
+            inner.prefs.notch_visible = visible;
+            inner.prefs.clone()
+        };
+        self.persist_prefs(&prefs);
+    }
+
+    pub fn set_notch_edge(&self, edge: NotchEdge) {
+        let prefs = {
+            let mut inner = self.write();
+            inner.prefs.notch_edge = edge;
             inner.prefs.clone()
         };
         self.persist_prefs(&prefs);

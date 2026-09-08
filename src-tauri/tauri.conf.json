@@ -10,7 +10,23 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
+      {
+        "label": "notch",
+        "title": "GaugeCode notch",
+        "url": "notch.html",
+        "width": 10,
+        "height": 80,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "shadow": false
+      },
       {
         "label": "popup",
         "title": "GaugeCode",

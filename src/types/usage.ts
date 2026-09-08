@@ -76,7 +76,21 @@ export interface StatusEvent {
 
 export type PrefUpdate =
   | { key: "provider_enabled"; provider: ProviderId; enabled: boolean }
-  | { key: "primary"; provider: ProviderId };
+  | { key: "primary"; provider: ProviderId }
+  | { key: "notch_visible"; visible: boolean }
+  | { key: "notch_edge"; edge: NotchEdge };
+
+/** Mirror of `NotchEdge` / `NotchMode` / `NotchView` in `src-tauri/src/notch.rs`. */
+export type NotchEdge = "right" | "left" | "top" | "bottom";
+
+export type NotchMode = "folded" | "peek" | "pinned";
+
+export interface NotchView {
+  mode: NotchMode;
+  edge: NotchEdge;
+  visible: boolean;
+}
 
 export const SNAPSHOT_EVENT = "usage:snapshot";
 export const STATUS_EVENT = "usage:status";
+export const NOTCH_EVENT = "notch:state";
