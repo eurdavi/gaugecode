@@ -12,13 +12,27 @@
   "app": {
     "windows": [
       {
+        "label": "popup",
+        "title": "GaugeCode",
+        "url": "popup.html",
+        "width": 340,
+        "height": 420,
+        "visible": false,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": true
+      },
+      {
         "label": "settings",
         "title": "GaugeCode — Settings",
         "url": "settings.html",
-        "width": 480,
-        "height": 520,
+        "width": 460,
+        "height": 480,
         "minWidth": 400,
         "minHeight": 360,
+        "visible": false,
         "center": true
       }
     ],
