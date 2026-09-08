@@ -1,16 +1,19 @@
 /**
- * Mirror of `src-tauri/src/model.rs`.
+ * Mirror of `src-tauri/src/model.rs` and the `ProviderView` in
+ * `src-tauri/src/commands.rs`.
  * If you change one side, change the other in the same commit (AGENTS.md).
  *
  * Serialization conventions (serde):
  *  - enums without payload → lowercase string
- *  - `ProviderStatus` → externally tagged with `kind`, snake_case
+ *  - `ProviderStatus` / `SignInHint` → externally tagged with `kind`, snake_case
  *  - `DateTime<Utc>` → RFC 3339 string
  */
 
 export type ProviderId = "claude" | "cursor" | "codex";
 
 export type Fidelity = "official" | "derived" | "manual";
+
+export type Band = "ok" | "warn" | "hot" | "off";
 
 export interface LimitWindow {
   /** "session", "weekly_all", "weekly_opus", "primary", ... */
@@ -49,9 +52,20 @@ export type SignInHint =
   | { kind: "open_app"; app: string }
   | { kind: "text"; text: string };
 
-/** Payload of the `usage:snapshot` event. */
-export interface SnapshotEvent {
-  snapshot: ProviderSnapshot;
+/** One row of the UI, as returned by the `get_state` command. */
+export interface ProviderView {
+  id: ProviderId;
+  name: string;
+  enabled: boolean;
+  /** `null` means "no reading yet" — show a placeholder, never a zero. */
+  status: ProviderStatus | null;
+  snapshot: ProviderSnapshot | null;
+  account: ProviderAccount | null;
+  sign_in_hint: SignInHint | null;
+  manage_url: string | null;
+  /** False for providers whose adapter is not in this build yet. */
+  implemented: boolean;
+  is_primary: boolean;
 }
 
 /** Payload of the `usage:status` event. */
@@ -59,3 +73,10 @@ export interface StatusEvent {
   provider: ProviderId;
   status: ProviderStatus;
 }
+
+export type PrefUpdate =
+  | { key: "provider_enabled"; provider: ProviderId; enabled: boolean }
+  | { key: "primary"; provider: ProviderId };
+
+export const SNAPSHOT_EVENT = "usage:snapshot";
+export const STATUS_EVENT = "usage:status";

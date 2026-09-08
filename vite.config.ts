@@ -10,10 +10,11 @@ export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
 
   // One HTML entry per Tauri window. Paths resolve relative to the Vite root.
-  // M0: settings. M1 adds popup.html, M2 adds notch.html (SPEC §4, §9).
+  // M2 adds notch.html (SPEC §4, §9).
   build: {
     rollupOptions: {
       input: {
+        popup: "popup.html",
         settings: "settings.html",
       },
     },
