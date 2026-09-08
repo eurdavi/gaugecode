@@ -31,7 +31,7 @@
         "label": "bar",
         "title": "GaugeCode bar",
         "url": "bar.html",
-        "width": 236,
+        "width": 152,
         "height": 48,
         "visible": false,
         "decorations": false,

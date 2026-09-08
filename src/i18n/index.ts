@@ -56,6 +56,27 @@ const en = {
     credits: "Credits",
     mcp: "MCP (1 month)",
   } as Record<string, string>,
+  /**
+   * Two or three characters wide, for the taskbar strip. Most are durations
+   * and so need no translating; only a handful are words.
+   */
+  windowShortNames: {
+    session: "5h",
+    weekly: "7d",
+    weekly_all: "7d",
+    weekly_opus: "Opus",
+    weekly_sonnet: "Sonnet",
+    weekly_scoped: "7d*",
+    plan: "Cycle",
+    api: "API",
+    on_demand: "Extra",
+    primary: "5h",
+    secondary: "7d",
+    rolling: "5h",
+    monthly: "30d",
+    credits: "Credit",
+    mcp: "MCP",
+  } as Record<string, string>,
   fidelity: {
     official: "from the vendor",
     derived: "estimated",
@@ -239,6 +260,23 @@ const ptBR: Messages = {
     credits: "Créditos",
     mcp: "MCP (1 mês)",
   },
+  windowShortNames: {
+    session: "5h",
+    weekly: "7d",
+    weekly_all: "7d",
+    weekly_opus: "Opus",
+    weekly_sonnet: "Sonnet",
+    weekly_scoped: "7d*",
+    plan: "Ciclo",
+    api: "API",
+    on_demand: "Extra",
+    primary: "5h",
+    secondary: "7d",
+    rolling: "5h",
+    monthly: "30d",
+    credits: "Créd.",
+    mcp: "MCP",
+  },
   fidelity: {
     official: "direto do fornecedor",
     derived: "estimado",
@@ -414,6 +452,23 @@ const es: Messages = {
     credits: "Créditos",
     mcp: "MCP (1 mes)",
   },
+  windowShortNames: {
+    session: "5h",
+    weekly: "7d",
+    weekly_all: "7d",
+    weekly_opus: "Opus",
+    weekly_sonnet: "Sonnet",
+    weekly_scoped: "7d*",
+    plan: "Ciclo",
+    api: "API",
+    on_demand: "Extra",
+    primary: "5h",
+    secondary: "7d",
+    rolling: "5h",
+    monthly: "30d",
+    credits: "Créd.",
+    mcp: "MCP",
+  },
   fidelity: {
     official: "directo del proveedor",
     derived: "estimado",
@@ -568,4 +623,12 @@ export function connectSteps(messages: Messages, provider: ProviderId): readonly
  */
 export function windowLabel(messages: Messages, id: string, fallback: string): string {
   return messages.windowNames[id] ?? fallback;
+}
+
+/**
+ * Two- or three-character name, for the taskbar strip where a full one would be
+ * truncated into uselessness. Falls back to the full name.
+ */
+export function shortWindowLabel(messages: Messages, id: string, fallback: string): string {
+  return messages.windowShortNames[id] ?? windowLabel(messages, id, fallback);
 }

@@ -20,8 +20,9 @@ use crate::state::AppState;
 pub const BAR_WINDOW: &str = "bar";
 pub const BAR_EVENT: &str = "bar:state";
 
-/// Logical width of the strip.
-const WIDTH: f64 = 236.0;
+/// Logical width of the strip. Sized for a two-character window name, ten
+/// blocks and a percentage — anything wider is empty space on the taskbar.
+const WIDTH: f64 = 152.0;
 /// Where the strip lands before the user has ever moved it: this far from the
 /// taskbar's trailing end, which clears a typical notification area and clock.
 const DEFAULT_OFFSET: f64 = 372.0;

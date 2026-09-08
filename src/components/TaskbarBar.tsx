@@ -5,14 +5,15 @@ import { isDimmed, primaryWindow, useMessages, usePrefs, useProviders } from "..
 import { BAR_EVENT, type BarView, type ProviderView } from "../types/usage";
 import { UsageBar } from "./UsageBar";
 
-/** The strip is one taskbar tall; two rows is what fits legibly. */
+/** A taskbar is around 48 px tall; two rows of 9 px type is what fits. */
 const MAX_ROWS = 2;
 
 /**
- * The taskbar strip. Rust owns its size and position (`src-tauri/src/bar.rs`);
- * this draws the tray provider's limit windows as segmented bars. The grip on
- * the left drags it; everything else opens the popup, because there is no room
- * here for anything more than the headline.
+ * The taskbar strip. Rust owns its size and position (`src-tauri/src/bar.rs`).
+ *
+ * Deliberately without a background: it sits *inside* the taskbar, and a panel
+ * of its own would read as a rectangle pasted on top. What makes it legible is
+ * the type and the blocks, not a plate behind them.
  */
 export function TaskbarBar() {
   const { providers } = useProviders();
@@ -39,34 +40,21 @@ export function TaskbarBar() {
   const dimmed = view ? isDimmed(view.status) : true;
 
   return (
-    <div
-      className={`flex h-screen w-screen items-center gap-2 overflow-hidden bg-neutral-950/80 px-1.5 text-neutral-100 backdrop-blur-sm ${
-        bar.horizontal ? "flex-row" : "flex-col justify-center"
-      }`}
-    >
-      <div
-        data-tauri-drag-region
-        className="flex h-full w-3 shrink-0 cursor-grab items-center justify-center text-neutral-600 active:cursor-grabbing"
-        title={messages.bar.drag}
-        aria-label={messages.bar.drag}
-      >
-        <span aria-hidden="true" className="select-none text-[10px] leading-none tracking-tighter">
-          ⋮⋮
-        </span>
-      </div>
+    <div className="flex h-screen w-screen items-center gap-1 overflow-hidden pl-0.5 pr-1 text-neutral-100">
+      <Grip label={messages.bar.drag} />
 
       <button
         type="button"
-        className="flex min-w-0 flex-1 flex-col justify-center gap-1 text-left"
+        className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] rounded text-left hover:bg-white/5"
         onClick={() => void invoke("open_popup")}
         title={view?.name ?? messages.app.name}
       >
-        {view && windows.length > 0 ? (
+        {windows.length > 0 ? (
           windows.map((limit) => (
             <UsageBar key={limit.id} window={limit} messages={messages} dimmed={dimmed} compact />
           ))
         ) : (
-          <span className="truncate text-[10px] text-neutral-400">
+          <span className="truncate px-1 text-[9px] text-neutral-400">
             {view ? messages.status.waiting : messages.notch.noProvider}
           </span>
         )}
@@ -75,10 +63,30 @@ export function TaskbarBar() {
   );
 }
 
+/** Two columns of dots, the usual "drag me" affordance. */
+function Grip({ label }: { label: string }) {
+  return (
+    <div
+      data-tauri-drag-region
+      className="flex h-full shrink-0 cursor-grab items-center px-1 active:cursor-grabbing"
+      title={label}
+      aria-label={label}
+    >
+      <svg width="4" height="14" viewBox="0 0 4 14" aria-hidden="true">
+        {[2, 5, 8, 11].map((y) =>
+          [0.75, 3.25].map((x) => (
+            <circle key={`${x}-${y}`} cx={x} cy={y} r="0.75" fill="rgb(255 255 255 / 0.35)" />
+          )),
+        )}
+      </svg>
+    </div>
+  );
+}
+
 /**
  * Mirrors `AppState::tray_provider`: the one the user picked when it has a
- * reading, otherwise the first enabled provider that does. The names must agree
- * with the tray icon or the strip would describe a different number.
+ * reading, otherwise the first enabled provider that does. The two must agree
+ * or the strip would describe a different number from the tray icon.
  */
 function trayProvider(providers: ProviderView[], primary: string): ProviderView | null {
   const hasReading = (view: ProviderView) => view.enabled && primaryWindow(view.snapshot) !== null;
