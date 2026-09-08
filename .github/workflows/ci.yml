@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           hits=$(grep -rEn --include='*.rs' --include='*.ts' --include='*.tsx' \
                  --include='*.html' --include='*.js' \
-                 'reqwest|fetch\(|rusqlite|security_framework|navigator\.sendBeacon|new WebSocket|EventSource|tauri_plugin_http' \
+                 'reqwest|\bfetch\(|rusqlite|security_framework|navigator\.sendBeacon|new WebSocket|EventSource|tauri_plugin_http' \
                  src src-tauri/src bar.html notch.html popup.html settings.html \
                  | grep -v '^src-tauri/src/providers/' || true)
           if [ -n "$hits" ]; then
@@ -63,13 +63,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # WebKitGTK for the webview, ayatana-appindicator for the tray.
+      # WebKitGTK for the webview, ayatana-appindicator for the tray. The older
+      # libappindicator3-dev is gone from Ubuntu 24.04, so only the ayatana one
+      # is asked for.
       - name: Linux system dependencies
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget \
+            file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -90,8 +92,10 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
+      # Updater artifacts are signed, and the signing key has no business in a
+      # workflow that runs on every pull request. The release job makes them.
       - name: tauri build
-        run: pnpm tauri build
+        run: pnpm tauri build --config src-tauri/tauri.ci.conf.json
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

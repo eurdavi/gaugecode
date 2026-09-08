@@ -1,6 +1,6 @@
 [package]
 name = "gaugecode"
-version = "0.1.2"
+version = "0.1.3"
 description = "Tray + notch overlay showing how much of your Claude Code, Cursor and Codex session limits you've used."
 authors = ["Davi <@eurdavi>"]
 license = "MIT"
