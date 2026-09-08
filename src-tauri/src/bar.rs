@@ -202,6 +202,23 @@ pub fn apply(app: &AppHandle) {
     let _ = app.emit(BAR_EVENT, BarView { visible: true, horizontal: taskbar.is_horizontal() });
 }
 
+/// Puts the strip back above the taskbar.
+///
+/// Both windows are "always on top", and within that band Windows orders by
+/// activation. The strip is never activated — it must not steal focus — so
+/// Explorer's taskbar quietly ends up above it and hides it completely. There
+/// is no API to pin one topmost window over another, so the flag is re-asserted
+/// on a short cadence instead; toggling it is what forces a fresh
+/// `SetWindowPos`, a bare `true` on an already-topmost window is a no-op.
+pub fn raise(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(BAR_WINDOW) else { return };
+    if !window.is_visible().unwrap_or(false) {
+        return;
+    }
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_always_on_top(true);
+}
+
 /// Called from the window's `Moved` event. Our own `set_position` fires it too,
 /// so only a position we did not set counts as a drag worth remembering.
 pub fn note_moved(app: &AppHandle, position: PhysicalPosition<i32>) {

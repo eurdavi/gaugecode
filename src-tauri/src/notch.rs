@@ -249,6 +249,8 @@ struct Runtime {
     /// When the pointer left an expanded notch; drives the collapse delay.
     left_at: Option<Instant>,
     last_work_area: Option<Rect>,
+    /// Counts pointer-watch ticks, so slower housekeeping can ride on the loop.
+    ticks: u32,
 }
 
 impl NotchState {
@@ -412,8 +414,27 @@ pub fn spawn_pointer_watch(app: &AppHandle) {
     });
 }
 
+/// Every third tick, about 300 ms: often enough that the taskbar never sits on
+/// the strip for long, rare enough to be free.
+const BAR_RAISE_EVERY: u32 = 3;
+
 fn tick(app: &AppHandle) {
     let prefs = app.state::<Arc<AppState>>().prefs();
+
+    // The taskbar strip rides on this loop too, because it has the same
+    // "someone else is on top of me" problem the notch would have on the bar.
+    if prefs.bar_visible {
+        let state = app.state::<NotchState>();
+        let ticks = {
+            let mut runtime = state.lock();
+            runtime.ticks = runtime.ticks.wrapping_add(1);
+            runtime.ticks
+        };
+        if ticks % BAR_RAISE_EVERY == 0 {
+            crate::bar::raise(app);
+        }
+    }
+
     if !prefs.notch_visible || !positioning_supported() {
         return;
     }
