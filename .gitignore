@@ -23,9 +23,9 @@ state.vscdb
 AGENTS.md
 SPEC.md
 
-# Updater signing key, if one is ever generated beside the project
+# Updater signing key. Never un-ignore a subtree: a key generated next to
+# tauri.conf.json must stay untracked.
 *.key
-!src-tauri/**/*.key
 
 # Locally built installers, copied here so they are easy to find
 installers/

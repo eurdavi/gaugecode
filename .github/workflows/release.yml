@@ -7,11 +7,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   release:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -25,7 +24,7 @@ jobs:
             args: ""
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Linux system dependencies
         if: matrix.platform == 'ubuntu-latest'
@@ -34,25 +33,22 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf libayatana-appindicator3-dev
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: lts/*
           cache: pnpm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: ./src-tauri -> target
 
       - run: pnpm install --frozen-lockfile
 
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Absent until the maintainer generates an updater key (SPEC §14).
@@ -65,10 +61,13 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: GaugeCode ${{ github.ref_name }}
           releaseBody: |
-            Read-only usage meter for Claude Code, Cursor and Codex.
+            Read-only usage meter for Claude Code, Cursor, Codex, GLM, Grok and OpenCode.
 
-            Windows installs are unsigned, so SmartScreen will warn once —
-            "More info" then "Run anyway". macOS builds are not notarised yet.
+            Windows: `.exe` or `.msi`. The build is unsigned, so SmartScreen warns
+            once — "More info" then "Run anyway".
+            macOS: universal `.dmg`, not notarised yet, so Gatekeeper warns once.
+            Linux: `.AppImage` or `.deb`. The notch needs an X11 session; on
+            Wayland it stays off and the tray takes over.
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
