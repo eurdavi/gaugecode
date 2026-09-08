@@ -1,13 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Baseline capability for the notch overlay, the tray popup and the settings window.",
+  "description": "Baseline for every window: IPC and positioning. Overlay windows get nothing else.",
   "windows": ["notch", "bar", "popup", "settings"],
   "permissions": [
     "core:default",
-    "opener:default",
-    "positioner:default",
-    "autostart:default",
-    "updater:default"
+    "positioner:default"
   ]
 }

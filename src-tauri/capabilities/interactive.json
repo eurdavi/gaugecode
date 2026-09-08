@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "interactive",
+  "description": "Settings and the tray popup may open vendor URLs, toggle autostart and install a signed update. The always-on-top overlays cannot.",
+  "windows": ["popup", "settings"],
+  "permissions": [
+    "opener:default",
+    "autostart:default",
+    "updater:default"
+  ]
+}

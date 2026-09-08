@@ -112,7 +112,8 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let dir = app.path().app_data_dir()?;
-            tracing::debug!(dir = %dir.display(), "app data dir");
+            tracing::debug!("app data dir resolved");
+            crate::providers::cursor::sweep_orphaned_scratch();
 
             // Resolved once: the OS language cannot change under a running app,
             // and the tray menu is built before any window could report it.

@@ -18,6 +18,9 @@ use crate::tray;
 
 pub const SNAPSHOT_EVENT: &str = "usage:snapshot";
 pub const STATUS_EVENT: &str = "usage:status";
+/// A second fetch inside this window is ignored, so looping `refresh_now`
+/// cannot spend the user's own rate limit.
+const MIN_FETCH_GAP: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Serialize)]
 struct StatusPayload {
@@ -67,10 +70,16 @@ async fn tick(app: &AppHandle, state: &Arc<AppState>, registry: &Arc<Registry>, 
         return;
     }
 
+    if state.fetched_within(id, MIN_FETCH_GAP) {
+        tracing::debug!(provider = ?id, "skipping fetch; last attempt was seconds ago");
+        return;
+    }
+
     // A provider without an adapter in this build stays without a reading,
     // rather than being given an invented one.
     let Some(provider) = registry.get(id) else { return };
 
+    state.note_fetch(id);
     match provider.fetch_snapshot().await {
         Ok(snapshot) => {
             state.clear_backoff(id);

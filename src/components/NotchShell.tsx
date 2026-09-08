@@ -182,7 +182,7 @@ function BarsRow({ view, messages }: { view: ProviderView; messages: ReturnType<
           </p>
         )}
       </div>
-      {windows.map((limit) => (
+      {windows.slice(0, 6).map((limit) => (
         <UsageBar key={limit.id} window={limit} messages={messages} dimmed={dimmed} />
       ))}
     </div>

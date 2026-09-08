@@ -1,6 +1,6 @@
 /**
  * Translations for the webview windows. The tray menu and the tooltip are drawn
- * before any window exists, so those live in `src-tauri/src/i18n.rs` — if you
+ * before any window exists, so those live in `src-tauri/src/i18n.rs` â if you
  * add a string there, add it here too.
  *
  * Messages are plain nested objects rather than dotted key strings, so the
@@ -13,7 +13,7 @@ import type { Language, ProviderId } from "../types/usage";
 const en = {
   app: {
     name: "GaugeCode",
-    loading: "loading…",
+    loading: "loadingâ¦",
     demo: "demo data",
     refresh: "Refresh now",
     settings: "Settings",
@@ -36,7 +36,7 @@ const en = {
   },
   /**
    * Limit-window names, keyed by the window id rather than by the label the
-   * adapter produced — the id is stable and language independent. Mirrors the
+   * adapter produced â the id is stable and language independent. Mirrors the
    * catalogue in `src-tauri/src/i18n.rs`; change one, change the other.
    */
   windowNames: {
@@ -113,17 +113,17 @@ const en = {
     notchHint:
       "Folded it is click-through and stays inside the work area, so it never covers the taskbar or the Dock. Point at it to peek; click to keep it open.",
     notchUnsupported:
-      "This session is Wayland, where an application cannot place its own window — the notch would drift, so it is turned off. The tray and the popup work normally. Log in to an X11 session to use it.",
+      "This session is Wayland, where an application cannot place its own window â the notch would drift, so it is turned off. The tray and the popup work normally. Log in to an X11 session to use it.",
     animation: "Animation",
     notchStyle: "Expanded view",
     taskbarBar: "Taskbar bar",
     barVisible: "Show a bar on the taskbar",
     barHint:
-      "A small strip on the taskbar with the tray provider's limits as segmented bars. Drag its grip to sit it wherever suits you; click it for the details. Independent of the notch — use either, both or neither.",
+      "A small strip on the taskbar with the tray provider's limits as segmented bars. Drag its grip to sit it wherever suits you; click it for the details. Independent of the notch â use either, both or neither.",
     barUnsupported: "There is no taskbar to sit on here, so this surface is unavailable.",
     overTaskbar: "Allow it over the taskbar",
     overTaskbarHint:
-      "Off by default the notch stays inside the work area, so it can never cover the taskbar or the Dock. Turn this on and it anchors to the whole screen instead — which is the only way to sit on the bar.",
+      "Off by default the notch stays inside the work area, so it can never cover the taskbar or the Dock. Turn this on and it anchors to the whole screen instead â which is the only way to sit on the bar.",
     appearance: "Appearance",
     language: "Language",
     languageSystem: "System",
@@ -154,8 +154,8 @@ const en = {
   } as Record<string, string>,
   language: {
     en: "English",
-    "pt-BR": "Português (Brasil)",
-    es: "Español",
+    "pt-BR": "PortuguÃªs (Brasil)",
+    es: "EspaÃ±ol",
   },
   onboarding: {
     skip: "Skip",
@@ -171,12 +171,12 @@ const en = {
       "Turn on the ones you actually use. A tool you are not signed in to will simply say so instead of showing a number.",
     surfacesTitle: "Two places to look",
     surfacesBody:
-      "The tray icon is a ring that fills with your usage — hover it for the figure, click it for the details. The notch is a thin sliver on a screen edge; point at it to expand it, click to keep it open.",
+      "The tray icon is a ring that fills with your usage â hover it for the figure, click it for the details. The notch is a thin sliver on a screen edge; point at it to expand it, click to keep it open.",
     honestTitle: "It will never invent a number",
     honestBody:
-      "These usage endpoints are not documented by the vendors and can change without notice. When one breaks, GaugeCode says stale, needs sign-in, or error — never a plausible-looking guess.",
+      "These usage endpoints are not documented by the vendors and can change without notice. When one breaks, GaugeCode says stale, needs sign-in, or error â never a plausible-looking guess.",
   },
-  /** Answers "where do I put the token?" — nowhere; you sign in to the tool. */
+  /** Answers "where do I put the token?" â nowhere; you sign in to the tool. */
   connect: {
     intro:
       "There is no token to paste. Each tool writes a credential on this machine when you sign in to it, and GaugeCode reads that file. Sign in to the tool and the number appears within a minute.",
@@ -202,7 +202,7 @@ const en = {
     grok: [
       "Install the Grok CLI and run `grok login`.",
       "That writes `~/.grok/auth.json`, which GaugeCode reads.",
-      "Only tokens issued by xAI are used — a corporate sign-in is never sent to the public endpoint.",
+      "Only tokens issued by xAI are used â a corporate sign-in is never sent to the public endpoint.",
     ],
     opencode: [
       "Open OpenCode and run `opencode auth login`, then connect Go.",
@@ -222,20 +222,20 @@ export type Messages = typeof en;
 const ptBR: Messages = {
   app: {
     name: "GaugeCode",
-    loading: "carregando…",
-    demo: "dados de demonstração",
+    loading: "carregandoâ¦",
+    demo: "dados de demonstraÃ§Ã£o",
     refresh: "Atualizar agora",
-    settings: "Preferências",
+    settings: "PreferÃªncias",
     close: "Fechar",
-    version: (version: string) => `versão ${version}`,
+    version: (version: string) => `versÃ£o ${version}`,
   },
   status: {
     waiting: "aguardando a primeira leitura",
     fresh: "em dia",
-    old: (age: string) => `há ${age}`,
+    old: (age: string) => `hÃ¡ ${age}`,
     needsAuth: "precisa de login",
     off: "desligado",
-    notImplemented: "ainda não está nesta versão",
+    notImplemented: "ainda nÃ£o estÃ¡ nesta versÃ£o",
     noReading: "sem leitura",
   },
   window: {
@@ -244,21 +244,21 @@ const ptBR: Messages = {
     underAMinute: "menos de um minuto",
   },
   windowNames: {
-    session: "Sessão (5h)",
+    session: "SessÃ£o (5h)",
     weekly: "Semanal",
     weekly_all: "Semanal (todos os modelos)",
     weekly_opus: "Semanal (Opus)",
     weekly_sonnet: "Semanal (Sonnet)",
     weekly_scoped: "Semanal (escopo)",
     plan: "Plano (ciclo de faturamento)",
-    api: "Uso de API incluído",
+    api: "Uso de API incluÃ­do",
     on_demand: "Gasto sob demanda",
     primary: "Limite principal",
-    secondary: "Limite secundário",
-    rolling: "Contínuo (5h)",
+    secondary: "Limite secundÃ¡rio",
+    rolling: "ContÃ­nuo (5h)",
     monthly: "Mensal",
-    credits: "Créditos",
-    mcp: "MCP (1 mês)",
+    credits: "CrÃ©ditos",
+    mcp: "MCP (1 mÃªs)",
   },
   windowShortNames: {
     session: "5h",
@@ -274,13 +274,13 @@ const ptBR: Messages = {
     secondary: "7d",
     rolling: "5h",
     monthly: "30d",
-    credits: "Créd.",
+    credits: "CrÃ©d.",
     mcp: "MCP",
   },
   fidelity: {
     official: "direto do fornecedor",
     derived: "estimado",
-    manual: "informado à mão",
+    manual: "informado Ã  mÃ£o",
   },
   notch: {
     pin: "Clique para fixar aberto",
@@ -292,50 +292,50 @@ const ptBR: Messages = {
   },
   settings: {
     readOnly:
-      "Somente leitura. O GaugeCode lê a credencial que cada ferramenta já deixou nesta máquina e consulta o endpoint de uso do próprio fornecedor. Ele nunca faz login por você e nunca manda nada para outro lugar.",
+      "Somente leitura. O GaugeCode lÃª a credencial que cada ferramenta jÃ¡ deixou nesta mÃ¡quina e consulta o endpoint de uso do prÃ³prio fornecedor. Ele nunca faz login por vocÃª e nunca manda nada para outro lugar.",
     providers: "Providers",
     tray: "bandeja",
-    trayHint: "Aparece no ícone da bandeja",
+    trayHint: "Aparece no Ã­cone da bandeja",
     enable: (name: string) => `Ativar ${name}`,
     manage: "gerenciar",
     connect: "Como conectar",
     windows: "Quais limites mostrar",
     windowsHint: "Limites desmarcados desaparecem da bandeja, do notch e do popup.",
-    refresh: "Atualização",
+    refresh: "AtualizaÃ§Ã£o",
     refreshEvery: "Verificar a cada",
     refreshHint:
-      "60 segundos é a cadência que os próprios clientes dos fornecedores usam. Mais rápido é permitido, mas arrisca um limite de taxa — e aí o app espera mais do que economizou.",
+      "60 segundos Ã© a cadÃªncia que os prÃ³prios clientes dos fornecedores usam. Mais rÃ¡pido Ã© permitido, mas arrisca um limite de taxa â e aÃ­ o app espera mais do que economizou.",
     seconds: (count: number) => `${count}s`,
     minutes: (count: number) => `${count} min`,
     notch: "Notch",
     notchVisible: "Mostrar o notch",
     notchEdge: "Borda da tela",
     notchHint:
-      "Dobrado, ele deixa o clique passar e fica dentro da área útil, então nunca cobre a barra de tarefas nem o Dock. Aponte o mouse para espiar; clique para deixar aberto.",
+      "Dobrado, ele deixa o clique passar e fica dentro da Ã¡rea Ãºtil, entÃ£o nunca cobre a barra de tarefas nem o Dock. Aponte o mouse para espiar; clique para deixar aberto.",
     notchUnsupported:
-      "Esta sessão é Wayland, onde um aplicativo não pode posicionar a própria janela — o notch ficaria à deriva, então está desligado. A bandeja e o popup funcionam normalmente. Entre numa sessão X11 para usá-lo.",
-    animation: "Animação",
-    notchStyle: "Visão expandida",
+      "Esta sessÃ£o Ã© Wayland, onde um aplicativo nÃ£o pode posicionar a prÃ³pria janela â o notch ficaria Ã  deriva, entÃ£o estÃ¡ desligado. A bandeja e o popup funcionam normalmente. Entre numa sessÃ£o X11 para usÃ¡-lo.",
+    animation: "AnimaÃ§Ã£o",
+    notchStyle: "VisÃ£o expandida",
     taskbarBar: "Barra na barra de tarefas",
     barVisible: "Mostrar uma barra na barra de tarefas",
     barHint:
-      "Uma faixa pequena na barra de tarefas com os limites do provider da bandeja em blocos. Arraste pela alça para deixar onde preferir; clique para ver os detalhes. Independente do notch — use um, os dois ou nenhum.",
-    barUnsupported: "Não há barra de tarefas onde encaixar aqui, então esta superfície fica indisponível.",
+      "Uma faixa pequena na barra de tarefas com os limites do provider da bandeja em blocos. Arraste pela alÃ§a para deixar onde preferir; clique para ver os detalhes. Independente do notch â use um, os dois ou nenhum.",
+    barUnsupported: "NÃ£o hÃ¡ barra de tarefas onde encaixar aqui, entÃ£o esta superfÃ­cie fica indisponÃ­vel.",
     overTaskbar: "Permitir sobre a barra de tarefas",
     overTaskbarHint:
-      "Desligado, o notch fica dentro da área útil e nunca cobre a barra de tarefas nem o Dock. Ligado, ele passa a se ancorar na tela inteira — que é a única forma de ficar sobre a barra.",
-    appearance: "Aparência",
+      "Desligado, o notch fica dentro da Ã¡rea Ãºtil e nunca cobre a barra de tarefas nem o Dock. Ligado, ele passa a se ancorar na tela inteira â que Ã© a Ãºnica forma de ficar sobre a barra.",
+    appearance: "AparÃªncia",
     language: "Idioma",
     languageSystem: "Do sistema",
     system: "Sistema",
     autostart: "Iniciar com o sistema",
-    autoUpdate: "Procurar atualizações automaticamente",
-    updateAvailable: (version: string) => `A versão ${version} está disponível`,
+    autoUpdate: "Procurar atualizaÃ§Ãµes automaticamente",
+    updateAvailable: (version: string) => `A versÃ£o ${version} estÃ¡ disponÃ­vel`,
     installUpdate: "Instalar e reiniciar",
     checkNow: "Procurar agora",
-    upToDate: "Você está na versão mais recente",
-    updates: "Atualizações",
-    howItWorks: "Como isso funciona / o que o app lê",
+    upToDate: "VocÃª estÃ¡ na versÃ£o mais recente",
+    updates: "AtualizaÃ§Ãµes",
+    howItWorks: "Como isso funciona / o que o app lÃª",
   },
   edge: {
     top: "Topo",
@@ -349,64 +349,64 @@ const ptBR: Messages = {
     instant: "Nenhuma",
   },
   notchStyle: {
-    rings: "Anéis",
+    rings: "AnÃ©is",
     bars: "Barras",
   },
   language: {
     en: "English",
-    "pt-BR": "Português (Brasil)",
-    es: "Español",
+    "pt-BR": "PortuguÃªs (Brasil)",
+    es: "EspaÃ±ol",
   },
   onboarding: {
     skip: "Pular",
     back: "Voltar",
-    next: "Avançar",
-    done: "Começar a usar",
+    next: "AvanÃ§ar",
+    done: "ComeÃ§ar a usar",
     step: (current: number, total: number) => `${current} de ${total}`,
     welcomeTitle: "O GaugeCode vigia seus limites",
     welcomeBody:
-      "Ele mostra quanto do limite de cada ferramenta de IA você já gastou, e quando cada janela reseta. Só lê o que essas ferramentas já deixaram nesta máquina, e nunca faz login por você.",
-    providersTitle: "Escolha as ferramentas que você usa",
+      "Ele mostra quanto do limite de cada ferramenta de IA vocÃª jÃ¡ gastou, e quando cada janela reseta. SÃ³ lÃª o que essas ferramentas jÃ¡ deixaram nesta mÃ¡quina, e nunca faz login por vocÃª.",
+    providersTitle: "Escolha as ferramentas que vocÃª usa",
     providersBody:
-      "Ligue as que você usa de verdade. Uma ferramenta em que você não está logado simplesmente vai dizer isso, em vez de mostrar um número.",
+      "Ligue as que vocÃª usa de verdade. Uma ferramenta em que vocÃª nÃ£o estÃ¡ logado simplesmente vai dizer isso, em vez de mostrar um nÃºmero.",
     surfacesTitle: "Dois lugares para olhar",
     surfacesBody:
-      "O ícone da bandeja é um anel que preenche com o seu uso — passe o mouse para ver o número, clique para os detalhes. O notch é uma tira fina na borda da tela; aponte o mouse para expandir, clique para deixar aberto.",
-    honestTitle: "Ele nunca vai inventar um número",
+      "O Ã­cone da bandeja Ã© um anel que preenche com o seu uso â passe o mouse para ver o nÃºmero, clique para os detalhes. O notch Ã© uma tira fina na borda da tela; aponte o mouse para expandir, clique para deixar aberto.",
+    honestTitle: "Ele nunca vai inventar um nÃºmero",
     honestBody:
-      "Esses endpoints de uso não são documentados pelos fornecedores e podem mudar sem aviso. Quando um quebrar, o GaugeCode diz desatualizado, precisa de login, ou erro — nunca um palpite com cara de verdade.",
+      "Esses endpoints de uso nÃ£o sÃ£o documentados pelos fornecedores e podem mudar sem aviso. Quando um quebrar, o GaugeCode diz desatualizado, precisa de login, ou erro â nunca um palpite com cara de verdade.",
   },
   connect: {
     intro:
-      "Não existe token para colar. Cada ferramenta grava uma credencial nesta máquina quando você faz login nela, e o GaugeCode lê esse arquivo. Faça login na ferramenta e o número aparece em menos de um minuto.",
+      "NÃ£o existe token para colar. Cada ferramenta grava uma credencial nesta mÃ¡quina quando vocÃª faz login nela, e o GaugeCode lÃª esse arquivo. FaÃ§a login na ferramenta e o nÃºmero aparece em menos de um minuto.",
     claude: [
       "Abra um terminal e rode `claude`.",
       "Digite `/login` e conclua o login no navegador que abrir.",
-      "Isso grava o login da sua assinatura no arquivo que o GaugeCode lê.",
+      "Isso grava o login da sua assinatura no arquivo que o GaugeCode lÃª.",
     ],
     cursor: [
-      "Abra o Cursor e faça login, se ainda não fez.",
-      "Nada além disso: o GaugeCode lê a sessão do próprio Cursor no banco local dele, em modo somente leitura.",
+      "Abra o Cursor e faÃ§a login, se ainda nÃ£o fez.",
+      "Nada alÃ©m disso: o GaugeCode lÃª a sessÃ£o do prÃ³prio Cursor no banco local dele, em modo somente leitura.",
     ],
     codex: [
       "Instale o Codex CLI (`npm i -g @openai/codex`).",
-      "Rode `codex` e faça login com sua conta do ChatGPT.",
-      "Isso grava o `~/.codex/auth.json`, que o GaugeCode lê.",
+      "Rode `codex` e faÃ§a login com sua conta do ChatGPT.",
+      "Isso grava o `~/.codex/auth.json`, que o GaugeCode lÃª.",
     ],
     glm: [
-      "O GLM não tem CLI próprio, então a cota anda numa chave do Z.ai Coding Plan que outra ferramenta guarda.",
+      "O GLM nÃ£o tem CLI prÃ³prio, entÃ£o a cota anda numa chave do Z.ai Coding Plan que outra ferramenta guarda.",
       "Configure essa chave no Claude Code (`settings.json`), no ZCode ou no OpenCode.",
       "O GaugeCode procura em todos esses lugares, nessa ordem.",
     ],
     grok: [
       "Instale o Grok CLI e rode `grok login`.",
-      "Isso grava o `~/.grok/auth.json`, que o GaugeCode lê.",
-      "Só tokens emitidos pela xAI são usados — login corporativo nunca é enviado ao endpoint público.",
+      "Isso grava o `~/.grok/auth.json`, que o GaugeCode lÃª.",
+      "SÃ³ tokens emitidos pela xAI sÃ£o usados â login corporativo nunca Ã© enviado ao endpoint pÃºblico.",
     ],
     opencode: [
       "Abra o OpenCode, rode `opencode auth login` e conecte o Go.",
-      "Isso guarda a chave `opencode-go` que o GaugeCode lê.",
-      "Só o plano Go é medido; crédito pay-as-you-go do Zen não tem endpoint.",
+      "Isso guarda a chave `opencode-go` que o GaugeCode lÃª.",
+      "SÃ³ o plano Go Ã© medido; crÃ©dito pay-as-you-go do Zen nÃ£o tem endpoint.",
     ],
   },
 };
@@ -414,42 +414,42 @@ const ptBR: Messages = {
 const es: Messages = {
   app: {
     name: "GaugeCode",
-    loading: "cargando…",
-    demo: "datos de demostración",
+    loading: "cargandoâ¦",
+    demo: "datos de demostraciÃ³n",
     refresh: "Actualizar ahora",
     settings: "Preferencias",
     close: "Cerrar",
-    version: (version: string) => `versión ${version}`,
+    version: (version: string) => `versiÃ³n ${version}`,
   },
   status: {
     waiting: "esperando la primera lectura",
-    fresh: "al día",
+    fresh: "al dÃ­a",
     old: (age: string) => `hace ${age}`,
-    needsAuth: "requiere inicio de sesión",
+    needsAuth: "requiere inicio de sesiÃ³n",
     off: "apagado",
-    notImplemented: "todavía no está en esta versión",
+    notImplemented: "todavÃ­a no estÃ¡ en esta versiÃ³n",
     noReading: "sin lectura",
   },
   window: {
     resetsIn: (duration: string) => `se reinicia en ${duration}`,
-    resettingNow: "reiniciándose ahora",
+    resettingNow: "reiniciÃ¡ndose ahora",
     underAMinute: "menos de un minuto",
   },
   windowNames: {
-    session: "Sesión (5h)",
+    session: "SesiÃ³n (5h)",
     weekly: "Semanal",
     weekly_all: "Semanal (todos los modelos)",
     weekly_opus: "Semanal (Opus)",
     weekly_sonnet: "Semanal (Sonnet)",
-    weekly_scoped: "Semanal (ámbito)",
-    plan: "Plan (ciclo de facturación)",
+    weekly_scoped: "Semanal (Ã¡mbito)",
+    plan: "Plan (ciclo de facturaciÃ³n)",
     api: "Uso de API incluido",
     on_demand: "Gasto a demanda",
-    primary: "Límite principal",
-    secondary: "Límite secundario",
+    primary: "LÃ­mite principal",
+    secondary: "LÃ­mite secundario",
     rolling: "Continuo (5h)",
     monthly: "Mensual",
-    credits: "Créditos",
+    credits: "CrÃ©ditos",
     mcp: "MCP (1 mes)",
   },
   windowShortNames: {
@@ -466,7 +466,7 @@ const es: Messages = {
     secondary: "7d",
     rolling: "5h",
     monthly: "30d",
-    credits: "Créd.",
+    credits: "CrÃ©d.",
     mcp: "MCP",
   },
   fidelity: {
@@ -477,57 +477,57 @@ const es: Messages = {
   notch: {
     pin: "Clic para mantener abierto",
     unpin: "Clic para soltar",
-    noProvider: "ningún proveedor activo",
+    noProvider: "ningÃºn proveedor activo",
   },
   bar: {
     drag: "Arrastra para mover a lo largo de la barra de tareas",
   },
   settings: {
     readOnly:
-      "Solo lectura. GaugeCode lee la credencial que cada herramienta ya dejó en este equipo y consulta el endpoint de uso del propio proveedor. Nunca inicia sesión por ti y nunca envía nada a ningún otro sitio.",
+      "Solo lectura. GaugeCode lee la credencial que cada herramienta ya dejÃ³ en este equipo y consulta el endpoint de uso del propio proveedor. Nunca inicia sesiÃ³n por ti y nunca envÃ­a nada a ningÃºn otro sitio.",
     providers: "Proveedores",
     tray: "bandeja",
     trayHint: "Se muestra en el icono de la bandeja",
     enable: (name: string) => `Activar ${name}`,
     manage: "gestionar",
-    connect: "Cómo conectar",
-    windows: "Qué límites mostrar",
-    windowsHint: "Los límites desmarcados desaparecen de la bandeja, del notch y del popup.",
-    refresh: "Actualización",
+    connect: "CÃ³mo conectar",
+    windows: "QuÃ© lÃ­mites mostrar",
+    windowsHint: "Los lÃ­mites desmarcados desaparecen de la bandeja, del notch y del popup.",
+    refresh: "ActualizaciÃ³n",
     refreshEvery: "Comprobar cada",
     refreshHint:
-      "60 segundos es la cadencia que usan los propios clientes de los proveedores. Más rápido está permitido, pero arriesga un límite de tasa — y entonces la app espera más de lo que ahorró.",
+      "60 segundos es la cadencia que usan los propios clientes de los proveedores. MÃ¡s rÃ¡pido estÃ¡ permitido, pero arriesga un lÃ­mite de tasa â y entonces la app espera mÃ¡s de lo que ahorrÃ³.",
     seconds: (count: number) => `${count}s`,
     minutes: (count: number) => `${count} min`,
     notch: "Notch",
     notchVisible: "Mostrar el notch",
     notchEdge: "Borde de la pantalla",
     notchHint:
-      "Plegado deja pasar los clics y se queda dentro del área de trabajo, así que nunca tapa la barra de tareas ni el Dock. Apunta con el ratón para asomarlo; haz clic para dejarlo abierto.",
+      "Plegado deja pasar los clics y se queda dentro del Ã¡rea de trabajo, asÃ­ que nunca tapa la barra de tareas ni el Dock. Apunta con el ratÃ³n para asomarlo; haz clic para dejarlo abierto.",
     notchUnsupported:
-      "Esta sesión es Wayland, donde una aplicación no puede colocar su propia ventana — el notch quedaría a la deriva, así que está desactivado. La bandeja y el popup funcionan con normalidad. Inicia una sesión X11 para usarlo.",
-    animation: "Animación",
+      "Esta sesiÃ³n es Wayland, donde una aplicaciÃ³n no puede colocar su propia ventana â el notch quedarÃ­a a la deriva, asÃ­ que estÃ¡ desactivado. La bandeja y el popup funcionan con normalidad. Inicia una sesiÃ³n X11 para usarlo.",
+    animation: "AnimaciÃ³n",
     notchStyle: "Vista expandida",
     taskbarBar: "Barra en la barra de tareas",
     barVisible: "Mostrar una barra en la barra de tareas",
     barHint:
-      "Una franja pequeña en la barra de tareas con los límites del proveedor de la bandeja en bloques. Arrástrala por el asa para dejarla donde prefieras; haz clic para ver los detalles. Independiente del notch — usa uno, ambos o ninguno.",
-    barUnsupported: "Aquí no hay barra de tareas donde encajar, así que esta superficie no está disponible.",
+      "Una franja pequeÃ±a en la barra de tareas con los lÃ­mites del proveedor de la bandeja en bloques. ArrÃ¡strala por el asa para dejarla donde prefieras; haz clic para ver los detalles. Independiente del notch â usa uno, ambos o ninguno.",
+    barUnsupported: "AquÃ­ no hay barra de tareas donde encajar, asÃ­ que esta superficie no estÃ¡ disponible.",
     overTaskbar: "Permitir sobre la barra de tareas",
     overTaskbarHint:
-      "Desactivado, el notch se queda dentro del área de trabajo y nunca tapa la barra de tareas ni el Dock. Activado, se ancla a la pantalla completa — que es la única forma de estar sobre la barra.",
+      "Desactivado, el notch se queda dentro del Ã¡rea de trabajo y nunca tapa la barra de tareas ni el Dock. Activado, se ancla a la pantalla completa â que es la Ãºnica forma de estar sobre la barra.",
     appearance: "Apariencia",
     language: "Idioma",
     languageSystem: "Del sistema",
     system: "Sistema",
     autostart: "Iniciar con el sistema",
-    autoUpdate: "Buscar actualizaciones automáticamente",
-    updateAvailable: (version: string) => `La versión ${version} está disponible`,
+    autoUpdate: "Buscar actualizaciones automÃ¡ticamente",
+    updateAvailable: (version: string) => `La versiÃ³n ${version} estÃ¡ disponible`,
     installUpdate: "Instalar y reiniciar",
     checkNow: "Buscar ahora",
-    upToDate: "Estás en la última versión",
+    upToDate: "EstÃ¡s en la Ãºltima versiÃ³n",
     updates: "Actualizaciones",
-    howItWorks: "Cómo funciona / qué lee la app",
+    howItWorks: "CÃ³mo funciona / quÃ© lee la app",
   },
   edge: {
     top: "Arriba",
@@ -546,59 +546,59 @@ const es: Messages = {
   },
   language: {
     en: "English",
-    "pt-BR": "Português (Brasil)",
-    es: "Español",
+    "pt-BR": "PortuguÃªs (Brasil)",
+    es: "EspaÃ±ol",
   },
   onboarding: {
     skip: "Omitir",
-    back: "Atrás",
+    back: "AtrÃ¡s",
     next: "Siguiente",
     done: "Empezar a usarlo",
     step: (current: number, total: number) => `${current} de ${total}`,
-    welcomeTitle: "GaugeCode vigila tus límites",
+    welcomeTitle: "GaugeCode vigila tus lÃ­mites",
     welcomeBody:
-      "Muestra cuánto del límite de cada herramienta de IA has gastado, y cuándo se reinicia cada ventana. Solo lee lo que esas herramientas ya dejaron en este equipo, y nunca inicia sesión por ti.",
+      "Muestra cuÃ¡nto del lÃ­mite de cada herramienta de IA has gastado, y cuÃ¡ndo se reinicia cada ventana. Solo lee lo que esas herramientas ya dejaron en este equipo, y nunca inicia sesiÃ³n por ti.",
     providersTitle: "Elige las herramientas que usas",
     providersBody:
-      "Activa las que realmente usas. Una herramienta en la que no has iniciado sesión simplemente lo dirá, en lugar de mostrar un número.",
+      "Activa las que realmente usas. Una herramienta en la que no has iniciado sesiÃ³n simplemente lo dirÃ¡, en lugar de mostrar un nÃºmero.",
     surfacesTitle: "Dos sitios donde mirar",
     surfacesBody:
-      "El icono de la bandeja es un anillo que se llena con tu uso — pasa el ratón para ver la cifra, haz clic para los detalles. El notch es una tira fina en un borde de la pantalla; apunta con el ratón para expandirlo, haz clic para dejarlo abierto.",
-    honestTitle: "Nunca se inventará un número",
+      "El icono de la bandeja es un anillo que se llena con tu uso â pasa el ratÃ³n para ver la cifra, haz clic para los detalles. El notch es una tira fina en un borde de la pantalla; apunta con el ratÃ³n para expandirlo, haz clic para dejarlo abierto.",
+    honestTitle: "Nunca se inventarÃ¡ un nÃºmero",
     honestBody:
-      "Estos endpoints de uso no están documentados por los proveedores y pueden cambiar sin avisar. Cuando uno se rompa, GaugeCode dirá desactualizado, requiere inicio de sesión, o error — nunca una suposición con aspecto creíble.",
+      "Estos endpoints de uso no estÃ¡n documentados por los proveedores y pueden cambiar sin avisar. Cuando uno se rompa, GaugeCode dirÃ¡ desactualizado, requiere inicio de sesiÃ³n, o error â nunca una suposiciÃ³n con aspecto creÃ­ble.",
   },
   connect: {
     intro:
-      "No hay ningún token que pegar. Cada herramienta escribe una credencial en este equipo cuando inicias sesión en ella, y GaugeCode lee ese archivo. Inicia sesión en la herramienta y el número aparece en menos de un minuto.",
+      "No hay ningÃºn token que pegar. Cada herramienta escribe una credencial en este equipo cuando inicias sesiÃ³n en ella, y GaugeCode lee ese archivo. Inicia sesiÃ³n en la herramienta y el nÃºmero aparece en menos de un minuto.",
     claude: [
       "Abre una terminal y ejecuta `claude`.",
-      "Escribe `/login` y completa el inicio de sesión en el navegador que se abra.",
-      "Eso escribe el login de tu suscripción en el archivo que GaugeCode lee.",
+      "Escribe `/login` y completa el inicio de sesiÃ³n en el navegador que se abra.",
+      "Eso escribe el login de tu suscripciÃ³n en el archivo que GaugeCode lee.",
     ],
     cursor: [
-      "Abre Cursor e inicia sesión, si aún no lo has hecho.",
-      "Nada más: GaugeCode lee la sesión de Cursor desde su base de datos local, en modo solo lectura.",
+      "Abre Cursor e inicia sesiÃ³n, si aÃºn no lo has hecho.",
+      "Nada mÃ¡s: GaugeCode lee la sesiÃ³n de Cursor desde su base de datos local, en modo solo lectura.",
     ],
     codex: [
       "Instala el CLI de Codex (`npm i -g @openai/codex`).",
-      "Ejecuta `codex` e inicia sesión con tu cuenta de ChatGPT.",
+      "Ejecuta `codex` e inicia sesiÃ³n con tu cuenta de ChatGPT.",
       "Eso escribe `~/.codex/auth.json`, que GaugeCode lee.",
     ],
     glm: [
-      "GLM no tiene CLI propio, así que la cuota va en una clave del Z.ai Coding Plan que otra herramienta guarda.",
+      "GLM no tiene CLI propio, asÃ­ que la cuota va en una clave del Z.ai Coding Plan que otra herramienta guarda.",
       "Configura esa clave en Claude Code (`settings.json`), en ZCode o en OpenCode.",
       "GaugeCode busca en todos esos sitios, en ese orden.",
     ],
     grok: [
       "Instala el CLI de Grok y ejecuta `grok login`.",
       "Eso escribe `~/.grok/auth.json`, que GaugeCode lee.",
-      "Solo se usan tokens emitidos por xAI — un inicio de sesión corporativo nunca se envía al endpoint público.",
+      "Solo se usan tokens emitidos por xAI â un inicio de sesiÃ³n corporativo nunca se envÃ­a al endpoint pÃºblico.",
     ],
     opencode: [
       "Abre OpenCode, ejecuta `opencode auth login` y conecta Go.",
       "Eso guarda la clave `opencode-go` que GaugeCode lee.",
-      "Solo se mide el plan Go; el crédito pay-as-you-go de Zen no tiene endpoint.",
+      "Solo se mide el plan Go; el crÃ©dito pay-as-you-go de Zen no tiene endpoint.",
     ],
   },
 };
@@ -620,9 +620,24 @@ export function connectSteps(messages: Messages, provider: ProviderId): readonly
  * Localised name for a limit window. Unknown ids keep whatever the adapter
  * called it: a window a vendor adds tomorrow should appear under its own name
  * rather than disappear for want of a translation.
+ *
+ * Looked up with `hasOwnProperty` so a vendor id of `constructor` cannot
+ * return `Object`'s constructor and crash the overlay.
  */
+function ownString(
+  catalogue: Record<string, string>,
+  id: string,
+  fallback: string,
+): string {
+  if (!Object.prototype.hasOwnProperty.call(catalogue, id)) {
+    return fallback;
+  }
+  const value = catalogue[id];
+  return typeof value === "string" ? value : fallback;
+}
+
 export function windowLabel(messages: Messages, id: string, fallback: string): string {
-  return messages.windowNames[id] ?? fallback;
+  return ownString(messages.windowNames, id, fallback);
 }
 
 /**
@@ -630,5 +645,5 @@ export function windowLabel(messages: Messages, id: string, fallback: string): s
  * truncated into uselessness. Falls back to the full name.
  */
 export function shortWindowLabel(messages: Messages, id: string, fallback: string): string {
-  return messages.windowShortNames[id] ?? windowLabel(messages, id, fallback);
+  return ownString(messages.windowShortNames, id, windowLabel(messages, id, fallback));
 }

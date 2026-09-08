@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::sync::RwLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 
@@ -80,6 +80,9 @@ struct Inner {
     backoff: HashMap<ProviderId, BackoffRecord>,
     prefs: Prefs,
     last_face: Option<TrayFace>,
+    /// Last time `tick` actually attempted a fetch, used so a webview cannot
+    /// hammer six vendors by looping `refresh_now`.
+    last_fetch: HashMap<ProviderId, Instant>,
 }
 
 impl AppState {
@@ -99,6 +102,7 @@ impl AppState {
             backoff: if demo { HashMap::new() } else { store.load_backoff() },
             prefs,
             last_face: None,
+            last_fetch: HashMap::new(),
         };
         Self {
             store,
@@ -349,6 +353,14 @@ impl AppState {
         self.refresh.notify_waiters();
     }
 
+    pub fn fetched_within(&self, id: ProviderId, gap: Duration) -> bool {
+        self.read().last_fetch.get(&id).is_some_and(|at| at.elapsed() < gap)
+    }
+
+    pub fn note_fetch(&self, id: ProviderId) {
+        self.write().last_fetch.insert(id, Instant::now());
+    }
+
     pub async fn wait_for_refresh(&self) {
         self.refresh.notified().await;
     }
@@ -538,6 +550,21 @@ mod tests {
         // And the cleaned cache is written back, so it stays gone.
         assert_eq!(store.load_snapshots().len(), 1);
 
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_second_fetch_inside_the_gap_is_ignored() {
+        let dir = std::env::temp_dir().join(format!("gaugecode-fetch-gap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let state = AppState::load(Store::new(dir.clone()), true, Language::English);
+        assert!(!state.fetched_within(ProviderId::Claude, Duration::from_secs(10)));
+        state.note_fetch(ProviderId::Claude);
+        assert!(state.fetched_within(ProviderId::Claude, Duration::from_secs(10)));
+        assert!(
+            !state.fetched_within(ProviderId::Cursor, Duration::from_secs(10)),
+            "the gap is per provider, not global"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

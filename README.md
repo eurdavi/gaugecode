@@ -91,9 +91,10 @@ se negocia aqui — um número errado é pior que número nenhum.
   e chama o endpoint daquele fornecedor. Nunca escreve nesses arquivos, e o SQLite do
   Cursor é aberto em modo somente leitura.
 - **Não faz login por você**, não troca de conta e não manda ping para "manter sessão viva".
-- **Zero telemetria.** O único tráfego de rede é o app falando com o fornecedor. A
-  integração contínua derruba o build se aparecer chamada de rede ou leitura de credencial
-  fora da pasta dos adapters.
+- **Zero telemetria.** O único tráfego de rede é o app falando com o fornecedor, mais a
+  checagem de atualização no GitHub (declarada no próprio app). A integração contínua
+  procura as primitivas óbvias de rede fora da pasta dos adapters; a garantia de verdade
+  é a revisão do código.
 - **Token nunca vai para log.** Os logs têm status HTTP, nome do provider e duração. Nada além.
 - **Atualização nunca se instala sozinha.** A checagem só avisa que existe versão nova;
   instalar é um clique seu.

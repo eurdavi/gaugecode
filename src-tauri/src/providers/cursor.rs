@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -105,9 +105,55 @@ fn read_item_table(path: &Path) -> rusqlite::Result<Vec<(String, String)>> {
 }
 
 /// A scratch directory that deletes itself, so a copy of somebody's credential
-/// database cannot outlive the read that needed it — not on an early return,
-/// not on a panic.
+/// database cannot outlive the read that needed it — not on an early return.
+/// Release builds set `panic = "abort"`, so a panic (or a kill) skips `Drop`;
+/// [`sweep_orphaned_scratch`] removes anything that got left behind.
 struct Scratch(PathBuf);
+
+/// Abandoned copies older than this are leftovers from a crash; anything newer
+/// might still belong to a read in flight.
+const ORPHAN_MAX_AGE: Duration = Duration::from_secs(5 * 60);
+
+fn is_cursor_scratch_name(name: &str) -> bool {
+    name.starts_with("gaugecode-cursor-")
+}
+
+/// Removes leftover `gaugecode-cursor-*` directories. Release builds abort on
+/// panic, so [`Scratch`]'s `Drop` never runs in that case.
+pub(crate) fn sweep_orphaned_scratch() {
+    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    let cutoff = SystemTime::now().checked_sub(ORPHAN_MAX_AGE).unwrap_or(SystemTime::UNIX_EPOCH);
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        if !is_cursor_scratch_name(&name.to_string_lossy()) {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else { continue };
+        if !meta.is_dir() {
+            continue;
+        }
+        let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        if modified <= cutoff {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+fn create_private_dir(dir: &Path) -> Result<(), ProviderError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(dir)
+            .map_err(|error| ProviderError::Io(error.to_string()))?;
+    }
+    #[cfg(not(unix))]
+    std::fs::create_dir(dir).map_err(|error| ProviderError::Io(error.to_string()))?;
+    Ok(())
+}
 
 impl Drop for Scratch {
     fn drop(&mut self) {
@@ -127,21 +173,17 @@ impl Drop for Scratch {
 ///   and reusing it would hand them the credential database. Failing is the
 ///   only safe answer.
 fn scratch() -> Result<Scratch, ProviderError> {
-    let unique = std::time::SystemTime::now()
+    sweep_orphaned_scratch();
+    let unique = SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|since| since.as_nanos())
         .unwrap_or_default();
     let dir = std::env::temp_dir()
         .join(format!("gaugecode-cursor-{}-{unique:x}", std::process::id()));
 
-    std::fs::create_dir(&dir).map_err(|error| ProviderError::Io(error.to_string()))?;
-
-    // Keep other users out of the directory itself, not just the files in it.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    // Mode is applied at create time on Unix, so there is no window where
+    // another local user can walk into a `0755` directory and plant a symlink.
+    create_private_dir(&dir)?;
 
     Ok(Scratch(dir))
 }
@@ -604,8 +646,18 @@ mod tests {
             .as_nanos();
         let taken = std::env::temp_dir().join(format!("gaugecode-cursor-taken-{unique:x}"));
         std::fs::create_dir(&taken).unwrap();
-        assert!(std::fs::create_dir(&taken).is_err(), "create_dir must reject an existing path");
+        assert!(
+            create_private_dir(&taken).is_err(),
+            "reusing a path somebody else created would copy the credential where they can read it"
+        );
         let _ = std::fs::remove_dir_all(&taken);
+    }
+
+    #[test]
+    fn only_our_scratch_directories_match_the_sweep_filter() {
+        assert!(is_cursor_scratch_name("gaugecode-cursor-1-abc"));
+        assert!(!is_cursor_scratch_name("gaugecode-ro-1"));
+        assert!(!is_cursor_scratch_name("other"));
     }
 
     #[test]

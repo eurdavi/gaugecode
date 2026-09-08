@@ -50,7 +50,7 @@ export function TaskbarBar() {
         title={view?.name ?? messages.app.name}
       >
         {windows.length > 0 ? (
-          windows.map((limit) => (
+          windows.slice(0, 6).map((limit) => (
             <UsageBar key={limit.id} window={limit} messages={messages} dimmed={dimmed} compact />
           ))
         ) : (

@@ -36,7 +36,7 @@ export function ProviderCard({ view, messages }: { view: ProviderView; messages:
 
         {view.snapshot ? (
           <ul className="mt-2 space-y-1.5">
-            {view.snapshot.windows.map((window) => {
+            {view.snapshot.windows.slice(0, 6).map((window) => {
               const reset = formatReset(window.resets_at, messages);
               return (
                 <li key={window.id} className="text-xs">
@@ -75,7 +75,7 @@ export function ProviderCard({ view, messages }: { view: ProviderView; messages:
 
         <footer className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400 dark:text-neutral-500">
           {view.snapshot && <span>{messages.fidelity[view.snapshot.fidelity]}</span>}
-          {view.account?.plan && <span>· {view.account.plan}</span>}
+          {view.account?.plan && <span className="truncate">· {view.account.plan}</span>}
           {view.manage_url && (
             <button
               type="button"

@@ -74,8 +74,9 @@ not bend — a wrong number is worse than no number.
   calls that vendor's own endpoint. It never writes to those files, and Cursor's SQLite
   is opened read-only.
 - **No sign-in on your behalf**, no account switching, no keep-alive pings.
-- **No telemetry.** The only network traffic is the app talking to the provider. CI
-  fails the build if a network call or a credential read appears outside the adapters.
+- **No telemetry.** The only network traffic is the app talking to the provider, plus
+  the update check on GitHub (declared in the app config). CI greps for the obvious
+  network primitives outside the adapters; the real guarantee is code review.
 - **Tokens never reach the logs.** Logs carry HTTP status, provider name and duration.
 - **Updates never install themselves.** The check only reports that a version exists.
 

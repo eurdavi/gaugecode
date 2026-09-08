@@ -1,7 +1,9 @@
 //! Provider adapters (SPEC §6, §7).
 //!
 //! **Every network call and every credential read in this app lives inside this
-//! module.** CI greps for `reqwest` outside of `src/providers/` and fails the build.
+//! module.** CI greps for the obvious primitives (`reqwest`, `fetch(`, …)
+//! outside `src-tauri/src/providers/` and fails the build. The updater's HTTPS
+//! check is declared in `tauri.conf.json`, not here.
 //!
 //! Adding a provider = one file here, registered in [`Registry::new`]. The UI
 //! iterates over snapshots; it never needs to change.
