@@ -72,6 +72,10 @@ Baixe o instalador em [Releases](https://github.com/eurdavi/gaugecode/releases).
 
 Idiomas: português, inglês e espanhol. Ele segue o idioma do seu sistema.
 
+As atualizações são verificadas e assinadas: um instalador que não tenha sido assinado com
+a chave deste projeto simplesmente não é aplicado. Nada se instala sozinho — a checagem só
+avisa que existe versão nova, e instalar é um clique seu nas Preferências.
+
 ## A ressalva honesta
 
 Os endpoints de uso que este app lê **não são documentados** pelos fornecedores e podem

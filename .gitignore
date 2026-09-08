@@ -27,6 +27,9 @@ SPEC.md
 *.key
 !src-tauri/**/*.key
 
+# Locally built installers, copied here so they are easy to find
+installers/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
