@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
-use crate::model::ProviderId;
 use crate::state::AppState;
+use crate::store::Prefs;
 
 pub const NOTCH_WINDOW: &str = "notch";
 pub const MODE_EVENT: &str = "notch:state";
@@ -49,6 +49,20 @@ impl NotchEdge {
     fn is_vertical(self) -> bool {
         matches!(self, NotchEdge::Left | NotchEdge::Right)
     }
+}
+
+/// How the notch moves between folded and expanded. Purely a UI concern — the
+/// window itself never resizes, so the choice cannot affect the geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotchAnimation {
+    /// Slides out of the edge it is anchored to.
+    #[default]
+    Slide,
+    /// Stays put and fades in.
+    Fade,
+    /// No transition at all.
+    Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -153,6 +167,20 @@ fn centre(start: i32, available: u32, size: u32) -> i32 {
     start + ((available.saturating_sub(size)) / 2) as i32
 }
 
+/// The window's actual footprint. It is **always** the expanded one, whatever
+/// the mode: resizing a window cannot be animated smoothly, so instead the
+/// window stays put and the UI slides the card inside it. While folded the
+/// window is click-through, so the extra area costs nothing.
+pub fn window_rect(work_area: Rect, scale: f64, edge: NotchEdge, providers: u32) -> Rect {
+    layout(work_area, scale, edge, NotchMode::Pinned, providers)
+}
+
+/// Where the folded sliver is drawn inside the window. This — not the window —
+/// is the area the pointer has to reach for the notch to peek.
+pub fn pill_rect(work_area: Rect, scale: f64, edge: NotchEdge, providers: u32) -> Rect {
+    layout(work_area, scale, edge, NotchMode::Folded, providers)
+}
+
 // ---------------------------------------------------------------------------
 // Runtime
 // ---------------------------------------------------------------------------
@@ -162,6 +190,12 @@ pub struct NotchView {
     pub mode: NotchMode,
     pub edge: NotchEdge,
     pub visible: bool,
+    pub animation: NotchAnimation,
+    /// Thickness of the folded sliver in CSS pixels, so the UI draws it exactly
+    /// where the pointer watch expects it to be.
+    pub folded_thickness: f64,
+    /// Length of the folded sliver along the edge, in CSS pixels.
+    pub folded_length: f64,
 }
 
 pub struct NotchState {
@@ -217,12 +251,20 @@ fn work_area_of(app: &AppHandle) -> Option<(Rect, f64)> {
 }
 
 fn enabled_provider_count(app: &AppHandle) -> u32 {
-    let prefs = app.state::<Arc<AppState>>().prefs();
-    ProviderId::ALL.iter().filter(|id| prefs.is_enabled(**id)).count().max(1) as u32
+    app.state::<Arc<AppState>>().prefs().enabled_count().max(1)
 }
 
-/// Applies the current mode to the window: geometry, click-through and
-/// visibility, then tells the UI what to draw.
+/// Logical size of the folded sliver: thickness across the edge, length along it.
+fn folded_logical(providers: u32) -> (f64, f64) {
+    let providers = providers.max(1) as f64;
+    (FOLDED_THICKNESS, (FOLDED_LENGTH_PER_PROVIDER * providers).max(FOLDED_MIN_LENGTH))
+}
+
+/// Applies the current mode to the window: click-through, visibility and
+/// geometry, then tells the UI what to draw.
+///
+/// The window is placed at its expanded footprint whatever the mode — see
+/// [`window_rect`].
 pub fn apply(app: &AppHandle, mode: NotchMode) {
     let Some(window) = app.get_webview_window(NOTCH_WINDOW) else { return };
     let prefs = app.state::<Arc<AppState>>().prefs();
@@ -238,12 +280,12 @@ pub fn apply(app: &AppHandle, mode: NotchMode) {
 
     if !prefs.notch_visible {
         let _ = window.hide();
-        emit(app, mode, prefs.notch_edge, false);
+        emit(app, view_of(&prefs, mode, false));
         return;
     }
 
     if let Some((work_area, scale)) = work_area_of(app) {
-        let rect = layout(work_area, scale, prefs.notch_edge, mode, enabled_provider_count(app));
+        let rect = window_rect(work_area, scale, prefs.notch_edge, enabled_provider_count(app));
         let _ = window.set_size(PhysicalSize::new(rect.width, rect.height));
         let _ = window.set_position(PhysicalPosition::new(rect.x, rect.y));
         app.state::<NotchState>().lock().last_work_area = Some(work_area);
@@ -251,25 +293,38 @@ pub fn apply(app: &AppHandle, mode: NotchMode) {
 
     // An overlay must never pull focus away from the editor underneath it.
     let _ = window.set_focusable(false);
+    // A usage meter you have to switch Spaces to read is not a usage meter. This
+    // matters on macOS, where every Space would otherwise hide it.
+    let _ = window.set_visible_on_all_workspaces(true);
     // Folded, the notch must not eat clicks meant for whatever is behind it.
     if let Err(error) = window.set_ignore_cursor_events(!mode.is_expanded()) {
         tracing::warn!(%error, "click-through is unavailable; the folded notch will take clicks");
     }
     let _ = window.show();
-    emit(app, mode, prefs.notch_edge, true);
+    emit(app, view_of(&prefs, mode, true));
 }
 
-fn emit(app: &AppHandle, mode: NotchMode, edge: NotchEdge, visible: bool) {
-    let _ = app.emit(MODE_EVENT, NotchView { mode, edge, visible });
+fn emit(app: &AppHandle, view: NotchView) {
+    let _ = app.emit(MODE_EVENT, view);
 }
 
-pub fn view(app: &AppHandle) -> NotchView {
-    let prefs = app.state::<Arc<AppState>>().prefs();
+fn view_of(prefs: &Prefs, mode: NotchMode, visible: bool) -> NotchView {
+    let (thickness, length) = folded_logical(prefs.enabled_count());
     NotchView {
-        mode: app.state::<NotchState>().mode(),
+        mode,
         edge: prefs.notch_edge,
-        visible: prefs.notch_visible,
+        visible,
+        animation: prefs.notch_animation,
+        folded_thickness: thickness,
+        folded_length: length,
     }
+}
+
+/// Takes the preferences as an argument rather than reaching for global state:
+/// the windows exist before `setup` has managed it, so a command that fired the
+/// moment a webview loaded would otherwise panic.
+pub fn view(app: &AppHandle, prefs: &Prefs) -> NotchView {
+    view_of(prefs, app.state::<NotchState>().mode(), prefs.notch_visible)
 }
 
 /// Samples the pointer so a folded, click-through notch can still notice that
@@ -309,15 +364,19 @@ fn tick(app: &AppHandle) {
 
     let Ok(cursor) = app.cursor_position() else { return };
     let providers = enabled_provider_count(app);
-    let rect = layout(work_area, scale, prefs.notch_edge, mode, providers);
 
     match mode {
         NotchMode::Folded => {
-            if rect.inflated(HOT_ZONE_PADDING).contains(cursor.x, cursor.y) {
+            // Only the sliver counts, not the whole (invisible) window.
+            let hot = pill_rect(work_area, scale, prefs.notch_edge, providers);
+            if hot.inflated(HOT_ZONE_PADDING).contains(cursor.x, cursor.y) {
                 apply(app, NotchMode::Peek);
             }
         }
         NotchMode::Peek => {
+            // Expanded, the whole window is the card, so leaving it means
+            // leaving the window.
+            let rect = window_rect(work_area, scale, prefs.notch_edge, providers);
             if rect.contains(cursor.x, cursor.y) {
                 state.lock().left_at = None;
                 return;
@@ -446,6 +505,38 @@ mod tests {
         let tiny = Rect { x: 10, y: 10, width: 120, height: 90 };
         let rect = layout(tiny, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
         assert!(contains_rect(tiny, rect), "{rect:?} escaped {tiny:?}");
+    }
+
+    #[test]
+    fn the_window_keeps_its_expanded_footprint_in_every_mode() {
+        // Smooth animation depends on this: the window never resizes, so what
+        // moves is the card drawn inside it.
+        for edge in all_edges() {
+            let expected = window_rect(WORK_AREA, 1.0, edge, 3);
+            for mode in [NotchMode::Folded, NotchMode::Peek, NotchMode::Pinned] {
+                assert_eq!(
+                    window_rect(WORK_AREA, 1.0, edge, 3),
+                    expected,
+                    "{edge:?}/{mode:?} moved the window"
+                );
+            }
+            assert!(contains_rect(WORK_AREA, expected), "{edge:?} escaped: {expected:?}");
+        }
+    }
+
+    #[test]
+    fn the_pill_sits_inside_the_window_flush_with_the_same_edge() {
+        for edge in all_edges() {
+            let window = window_rect(WORK_AREA, 1.0, edge, 3);
+            let pill = pill_rect(WORK_AREA, 1.0, edge, 3);
+            assert!(contains_rect(window, pill), "{edge:?}: {pill:?} outside {window:?}");
+            match edge {
+                NotchEdge::Right => assert_eq!(pill.right(), window.right()),
+                NotchEdge::Left => assert_eq!(pill.x, window.x),
+                NotchEdge::Top => assert_eq!(pill.y, window.y),
+                NotchEdge::Bottom => assert_eq!(pill.bottom(), window.bottom()),
+            }
+        }
     }
 
     #[test]
