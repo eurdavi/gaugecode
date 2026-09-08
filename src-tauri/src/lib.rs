@@ -1,4 +1,5 @@
 pub mod autostart;
+pub mod bar;
 pub mod commands;
 pub mod i18n;
 pub mod icon;
@@ -76,6 +77,8 @@ pub fn run() {
             commands::hide_popup,
             commands::get_notch,
             commands::toggle_notch_pin,
+            commands::get_bar,
+            commands::open_popup,
             updater::update_status,
             updater::check_update_now,
             updater::install_update,
@@ -91,6 +94,14 @@ pub fn run() {
             WindowEvent::Focused(false) if window.label() == tray::POPUP_WINDOW => {
                 let _ = window.hide();
                 note_popup_hidden(window);
+            }
+            // The taskbar strip is draggable; remember where it was left. The
+            // state check is for a `Moved` that fires before setup has run.
+            WindowEvent::Moved(position)
+                if window.label() == bar::BAR_WINDOW
+                    && window.app_handle().try_state::<bar::BarState>().is_some() =>
+            {
+                bar::note_moved(window.app_handle(), *position);
             }
             _ => {}
         })
@@ -111,6 +122,7 @@ pub fn run() {
             app.manage(state);
             app.manage(Arc::new(Registry::new(demo)));
             app.manage(notch::NotchState::new());
+            app.manage(bar::BarState::default());
             app.manage(updater::UpdateState::default());
 
             let handle = app.handle().clone();
@@ -118,6 +130,7 @@ pub fn run() {
             tray::build(&handle)?;
             tray::update(&handle);
             notch::apply(&handle, notch::NotchMode::Folded);
+            bar::apply(&handle);
             notch::spawn_pointer_watch(&handle);
             scheduler::spawn(&handle);
             updater::spawn_check(&handle);

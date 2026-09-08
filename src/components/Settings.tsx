@@ -502,6 +502,25 @@ export function Settings() {
         </Card>
       </Section>
 
+      <Section title={messages.settings.taskbarBar}>
+        <Card>
+          {prefs && !prefs.bar_supported && (
+            <p className="border-b border-neutral-200 px-4 py-3 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+              {messages.settings.barUnsupported}
+            </p>
+          )}
+          <Toggle
+            label={messages.settings.barVisible}
+            checked={(prefs?.bar_visible ?? false) && (prefs?.bar_supported ?? false)}
+            disabled={prefs === null || !prefs.bar_supported}
+            onChange={(visible) => void setPref({ key: "bar_visible", visible })}
+          />
+          <p className="border-t border-neutral-200 px-4 py-3 text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+            {messages.settings.barHint}
+          </p>
+        </Card>
+      </Section>
+
       <Section title={messages.settings.appearance}>
         <Card>
           <ChoiceRow

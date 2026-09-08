@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Baseline capability for the notch overlay, the tray popup and the settings window.",
-  "windows": ["notch", "popup", "settings"],
+  "windows": ["notch", "bar", "popup", "settings"],
   "permissions": [
     "core:default",
     "opener:default",

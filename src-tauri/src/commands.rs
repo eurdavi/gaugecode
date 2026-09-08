@@ -7,6 +7,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::bar;
 use crate::i18n::{fill, Language};
 use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus, SignInHint};
 use crate::notch::{self, NotchAnimation, NotchEdge, NotchStyle};
@@ -61,6 +62,9 @@ pub struct PrefsView {
     pub notch_animation: NotchAnimation,
     pub notch_style: NotchStyle,
     pub notch_over_taskbar: bool,
+    pub bar_visible: bool,
+    /// False on macOS (no taskbar) and on Wayland (no window placement).
+    pub bar_supported: bool,
     pub autostart: bool,
     pub auto_update: bool,
     pub poll_seconds: u64,
@@ -87,6 +91,7 @@ pub enum PrefUpdate {
     NotchAnimation { animation: NotchAnimation },
     NotchStyle { style: NotchStyle },
     NotchOverTaskbar { over: bool },
+    BarVisible { visible: bool },
     /// `null` goes back to following the operating system.
     Language { language: Option<Language> },
     Autostart { enabled: bool },
@@ -165,6 +170,8 @@ fn view_of(state: &AppState) -> PrefsView {
         notch_animation: prefs.notch_animation,
         notch_style: prefs.notch_style,
         notch_over_taskbar: prefs.notch_over_taskbar,
+        bar_visible: prefs.bar_visible,
+        bar_supported: bar::supported(),
         autostart: prefs.autostart,
         auto_update: prefs.auto_update,
         poll_seconds: prefs.poll_seconds,
@@ -208,6 +215,7 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
         PrefUpdate::NotchAnimation { animation } => state.set_notch_animation(animation),
         PrefUpdate::NotchStyle { style } => state.set_notch_style(style),
         PrefUpdate::NotchOverTaskbar { over } => state.set_notch_over_taskbar(over),
+        PrefUpdate::BarVisible { visible } => state.set_bar_visible(visible),
         PrefUpdate::Language { language } => state.set_language(language),
         PrefUpdate::Autostart { enabled } => {
             // Ask the OS first: if registering the login item fails there is no
@@ -229,6 +237,7 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
     // The notch length depends on how many providers are on, and its position on
     // the chosen edge, so any of these changes has to re-anchor it.
     notch::apply(&app, app.state::<notch::NotchState>().mode());
+    bar::apply(&app);
     let _ = app.emit(PREFS_EVENT, view_of(&state));
     state.request_refresh();
 }
@@ -239,6 +248,17 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
 #[tauri::command]
 pub fn get_notch(app: AppHandle, state: State<'_, Arc<AppState>>) -> notch::NotchView {
     notch::view(&app, &state.prefs())
+}
+
+#[tauri::command]
+pub fn get_bar(app: AppHandle, _state: State<'_, Arc<AppState>>) -> bar::BarView {
+    bar::view(&app)
+}
+
+/// The strip has no room for details; a click opens the same popup the tray does.
+#[tauri::command]
+pub fn open_popup(app: AppHandle) {
+    tray::toggle_popup(&app);
 }
 
 /// Clicking the notch pins it open; clicking again lets it fold back.

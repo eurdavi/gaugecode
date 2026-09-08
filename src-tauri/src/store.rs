@@ -59,6 +59,12 @@ pub struct Prefs {
     pub hidden_windows: HashMap<ProviderId, Vec<String>>,
     /// False until the first-run walkthrough has been dismissed.
     pub onboarded: bool,
+    /// The taskbar strip. Off by default: the notch is the default surface, and
+    /// the two are independent so either, both or neither can be on.
+    pub bar_visible: bool,
+    /// Physical pixels from the taskbar's trailing end, remembered after a
+    /// drag. `None` means the default spot.
+    pub bar_offset: Option<i32>,
 }
 
 /// Anything faster than this is a good way to earn a 429 (SPEC §8).
@@ -84,6 +90,8 @@ impl Default for Prefs {
             poll_seconds: DEFAULT_POLL_SECONDS,
             hidden_windows: HashMap::new(),
             onboarded: false,
+            bar_visible: false,
+            bar_offset: None,
         }
     }
 }

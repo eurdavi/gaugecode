@@ -426,8 +426,11 @@ fn tick(app: &AppHandle) {
     // another monitor: re-anchor before deciding anything.
     let moved = { state.lock().last_work_area } != Some(work_area);
     if moved {
-        tracing::debug!(?work_area, "work area changed; re-anchoring notch");
+        tracing::debug!(?work_area, "work area changed; re-anchoring notch and bar");
         apply(app, mode);
+        // The taskbar strip lives in the space the work area leaves out, so it
+        // has to follow the same change.
+        crate::bar::apply(app);
         return;
     }
 

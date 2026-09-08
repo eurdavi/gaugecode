@@ -74,8 +74,14 @@ async fn tick(app: &AppHandle, state: &Arc<AppState>, registry: &Arc<Registry>, 
     match provider.fetch_snapshot().await {
         Ok(snapshot) => {
             state.clear_backoff(id);
-            let _ = app.emit(SNAPSHOT_EVENT, &snapshot);
             state.record_snapshot(snapshot);
+            // Emit the snapshot as the user chose to see it, not as it came off
+            // the wire: the UI patches its state from this event, so an
+            // unfiltered payload here would undo the per-window choices every
+            // cycle.
+            if let Some(visible) = state.visible_snapshot(id) {
+                let _ = app.emit(SNAPSHOT_EVENT, &visible);
+            }
             publish(app, state, id, ProviderStatus::Fresh);
         }
         Err(ProviderError::RateLimited { retry_after }) => {

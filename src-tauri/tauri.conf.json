@@ -28,6 +28,21 @@
         "shadow": false
       },
       {
+        "label": "bar",
+        "title": "GaugeCode bar",
+        "url": "bar.html",
+        "width": 236,
+        "height": 48,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "shadow": false
+      },
+      {
         "label": "popup",
         "title": "GaugeCode",
         "url": "popup.html",

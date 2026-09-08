@@ -26,6 +26,7 @@ const REOPEN_GUARD: Duration = Duration::from_millis(300);
 pub struct TrayState {
     refresh_item: MenuItem<Wry>,
     notch_item: MenuItem<Wry>,
+    bar_item: MenuItem<Wry>,
     settings_item: MenuItem<Wry>,
     quit_item: MenuItem<Wry>,
     last_hidden: Mutex<Option<Instant>>,
@@ -54,6 +55,14 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 
     let refresh_item = MenuItem::with_id(app, "refresh", text.menu_refresh, true, None::<&str>)?;
     let notch_item = MenuItem::with_id(app, "notch", text.menu_hide_notch, true, None::<&str>)?;
+    // Only offered where there is a taskbar to sit on.
+    let bar_item = MenuItem::with_id(
+        app,
+        "bar",
+        text.menu_show_bar,
+        crate::bar::supported(),
+        None::<&str>,
+    )?;
     let settings_item = MenuItem::with_id(app, "settings", text.menu_settings, true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", text.menu_quit, true, None::<&str>)?;
     let first_separator = PredefinedMenuItem::separator(app)?;
@@ -64,6 +73,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         &[
             &refresh_item as &dyn IsMenuItem<Wry>,
             &notch_item,
+            &bar_item,
             &first_separator,
             &settings_item,
             &second_separator,
@@ -74,6 +84,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     app.manage(TrayState {
         refresh_item,
         notch_item,
+        bar_item,
         settings_item,
         quit_item,
         last_hidden: Mutex::new(None),
@@ -96,6 +107,15 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 let visible = !state.prefs().notch_visible;
                 state.set_notch_visible(visible);
                 crate::notch::apply(app, crate::notch::NotchMode::Folded);
+                crate::commands::publish_prefs(app);
+                update(app);
+            }
+            "bar" => {
+                let state = app.state::<Arc<AppState>>();
+                let visible = !state.prefs().bar_visible;
+                state.set_bar_visible(visible);
+                crate::bar::apply(app);
+                crate::commands::publish_prefs(app);
                 update(app);
             }
             "settings" => show_settings(app),
@@ -178,6 +198,11 @@ pub fn update(app: &AppHandle) {
         text.menu_hide_notch
     } else {
         text.menu_show_notch
+    });
+    let _ = tray_state.bar_item.set_text(if prefs.bar_visible {
+        text.menu_hide_bar
+    } else {
+        text.menu_show_bar
     });
 
     match state.backoff_until(prefs.primary) {

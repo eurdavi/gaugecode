@@ -225,6 +225,14 @@ impl AppState {
         self.update_prefs(|inner| inner.prefs.onboarded = onboarded);
     }
 
+    pub fn set_bar_visible(&self, visible: bool) {
+        self.update_prefs(|inner| inner.prefs.bar_visible = visible);
+    }
+
+    pub fn set_bar_offset(&self, offset: Option<i32>) {
+        self.update_prefs(|inner| inner.prefs.bar_offset = offset);
+    }
+
     /// Shows or hides one limit window. The tray may need a redraw because the
     /// headline window can change.
     pub fn set_window_hidden(&self, id: ProviderId, window_id: String, hidden: bool) {
@@ -479,6 +487,34 @@ mod tests {
         let mut inner = inner_with(ProviderId::Claude, &[ProviderId::Cursor]);
         inner.prefs.enabled.insert(ProviderId::Cursor, false);
         assert_eq!(AppState::tray_provider_of(&inner), ProviderId::Claude);
+    }
+
+    #[test]
+    fn a_hidden_window_leaves_the_visible_snapshot_but_not_the_raw_one() {
+        let mut inner = inner_with(ProviderId::Claude, &[ProviderId::Claude]);
+        inner.snapshots.get_mut(&ProviderId::Claude).unwrap().windows.push(
+            crate::model::LimitWindow {
+                id: "weekly_scoped".into(),
+                label: "Weekly Scoped".into(),
+                used_fraction: 0.5,
+                resets_at: None,
+            },
+        );
+        inner.prefs.hidden_windows.insert(ProviderId::Claude, vec!["weekly_scoped".into()]);
+
+        let visible = AppState::visible_snapshot_of(&inner, ProviderId::Claude).unwrap();
+        let ids: Vec<&str> = visible.windows.iter().map(|w| w.id.as_str()).collect();
+        assert_eq!(ids, ["session"], "the hidden window must be gone from what is drawn");
+        // The raw snapshot keeps it, so the gear can offer it back.
+        assert_eq!(inner.snapshots[&ProviderId::Claude].windows.len(), 2);
+    }
+
+    #[test]
+    fn hiding_every_window_is_ignored_rather_than_leaving_nothing_to_draw() {
+        let mut inner = inner_with(ProviderId::Claude, &[ProviderId::Claude]);
+        inner.prefs.hidden_windows.insert(ProviderId::Claude, vec!["session".into()]);
+        let visible = AppState::visible_snapshot_of(&inner, ProviderId::Claude).unwrap();
+        assert_eq!(visible.windows.len(), 1);
     }
 
     #[test]

@@ -63,6 +63,8 @@ pub struct Strings {
     pub menu_waiting_until: &'static str,
     pub menu_hide_notch: &'static str,
     pub menu_show_notch: &'static str,
+    pub menu_hide_bar: &'static str,
+    pub menu_show_bar: &'static str,
     pub menu_settings: &'static str,
     pub menu_quit: &'static str,
 
@@ -89,6 +91,7 @@ pub struct Strings {
     pub window_weekly_all: &'static str,
     pub window_weekly_opus: &'static str,
     pub window_weekly_sonnet: &'static str,
+    pub window_weekly_scoped: &'static str,
     pub window_plan: &'static str,
     pub window_api: &'static str,
     pub window_on_demand: &'static str,
@@ -112,6 +115,7 @@ pub fn window_label(language: Language, id: &str, fallback: &str) -> String {
         "weekly_all" => text.window_weekly_all,
         "weekly_opus" => text.window_weekly_opus,
         "weekly_sonnet" => text.window_weekly_sonnet,
+        "weekly_scoped" => text.window_weekly_scoped,
         "plan" => text.window_plan,
         "api" => text.window_api,
         "on_demand" => text.window_on_demand,
@@ -136,6 +140,8 @@ static EN: Strings = Strings {
     menu_waiting_until: "Waiting until {}",
     menu_hide_notch: "Hide notch",
     menu_show_notch: "Show notch",
+    menu_hide_bar: "Hide taskbar bar",
+    menu_show_bar: "Show taskbar bar",
     menu_settings: "Settings…",
     menu_quit: "Quit GaugeCode",
 
@@ -153,6 +159,7 @@ static EN: Strings = Strings {
     window_weekly_all: "Weekly (all models)",
     window_weekly_opus: "Weekly (Opus)",
     window_weekly_sonnet: "Weekly (Sonnet)",
+    window_weekly_scoped: "Weekly (scoped)",
     window_plan: "Plan (billing cycle)",
     window_api: "Included API usage",
     window_on_demand: "On-demand spend",
@@ -169,6 +176,8 @@ static PT_BR: Strings = Strings {
     menu_waiting_until: "Aguardando até {}",
     menu_hide_notch: "Ocultar notch",
     menu_show_notch: "Mostrar notch",
+    menu_hide_bar: "Ocultar barra da barra de tarefas",
+    menu_show_bar: "Mostrar barra na barra de tarefas",
     menu_settings: "Preferências…",
     menu_quit: "Sair do GaugeCode",
 
@@ -186,6 +195,7 @@ static PT_BR: Strings = Strings {
     window_weekly_all: "Semanal (todos os modelos)",
     window_weekly_opus: "Semanal (Opus)",
     window_weekly_sonnet: "Semanal (Sonnet)",
+    window_weekly_scoped: "Semanal (escopo)",
     window_plan: "Plano (ciclo de faturamento)",
     window_api: "Uso de API incluído",
     window_on_demand: "Gasto sob demanda",
@@ -202,6 +212,8 @@ static ES: Strings = Strings {
     menu_waiting_until: "Esperando hasta {}",
     menu_hide_notch: "Ocultar notch",
     menu_show_notch: "Mostrar notch",
+    menu_hide_bar: "Ocultar barra de la barra de tareas",
+    menu_show_bar: "Mostrar barra en la barra de tareas",
     menu_settings: "Preferencias…",
     menu_quit: "Salir de GaugeCode",
 
@@ -219,6 +231,7 @@ static ES: Strings = Strings {
     window_weekly_all: "Semanal (todos los modelos)",
     window_weekly_opus: "Semanal (Opus)",
     window_weekly_sonnet: "Semanal (Sonnet)",
+    window_weekly_scoped: "Semanal (ámbito)",
     window_plan: "Plan (ciclo de facturación)",
     window_api: "Uso de API incluido",
     window_on_demand: "Gasto a demanda",
@@ -300,8 +313,9 @@ mod tests {
     #[test]
     fn every_window_name_is_translated_in_every_language() {
         let ids = [
-            "session", "weekly", "weekly_all", "weekly_opus", "weekly_sonnet", "plan", "api",
-            "on_demand", "primary", "secondary", "rolling", "monthly", "credits", "mcp",
+            "session", "weekly", "weekly_all", "weekly_opus", "weekly_sonnet", "weekly_scoped",
+            "plan", "api", "on_demand", "primary", "secondary", "rolling", "monthly", "credits",
+            "mcp",
         ];
         for id in ids {
             let english = window_label(Language::English, id, "FALLBACK");

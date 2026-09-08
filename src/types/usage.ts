@@ -92,6 +92,7 @@ export type PrefUpdate =
   | { key: "notch_animation"; animation: NotchAnimation }
   | { key: "notch_style"; style: NotchStyle }
   | { key: "notch_over_taskbar"; over: boolean }
+  | { key: "bar_visible"; visible: boolean }
   /** `null` goes back to following the operating system. */
   | { key: "language"; language: Language | null }
   | { key: "autostart"; enabled: boolean }
@@ -134,6 +135,9 @@ export interface PrefsView {
   notch_animation: NotchAnimation;
   notch_style: NotchStyle;
   notch_over_taskbar: boolean;
+  bar_visible: boolean;
+  /** False on macOS (no taskbar) and on Wayland (no window placement). */
+  bar_supported: boolean;
   autostart: boolean;
   auto_update: boolean;
   poll_seconds: number;
@@ -146,6 +150,12 @@ export interface PrefsView {
   version: string;
 }
 
+/** Mirror of `BarView` in `src-tauri/src/bar.rs`. */
+export interface BarView {
+  visible: boolean;
+  horizontal: boolean;
+}
+
 /** Mirror of `AvailableUpdate` in `src-tauri/src/updater.rs`. */
 export interface AvailableUpdate {
   version: string;
@@ -155,5 +165,6 @@ export interface AvailableUpdate {
 export const SNAPSHOT_EVENT = "usage:snapshot";
 export const STATUS_EVENT = "usage:status";
 export const NOTCH_EVENT = "notch:state";
+export const BAR_EVENT = "bar:state";
 export const PREFS_EVENT = "prefs:changed";
 export const UPDATE_EVENT = "update:available";

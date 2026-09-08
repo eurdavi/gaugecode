@@ -45,6 +45,7 @@ const en = {
     weekly_all: "Weekly (all models)",
     weekly_opus: "Weekly (Opus)",
     weekly_sonnet: "Weekly (Sonnet)",
+    weekly_scoped: "Weekly (scoped)",
     plan: "Plan (billing cycle)",
     api: "Included API usage",
     on_demand: "On-demand spend",
@@ -64,6 +65,9 @@ const en = {
     pin: "Click to keep open",
     unpin: "Click to unpin",
     noProvider: "no provider enabled",
+  },
+  bar: {
+    drag: "Drag to move along the taskbar",
   },
   settings: {
     readOnly:
@@ -91,6 +95,11 @@ const en = {
       "This session is Wayland, where an application cannot place its own window — the notch would drift, so it is turned off. The tray and the popup work normally. Log in to an X11 session to use it.",
     animation: "Animation",
     notchStyle: "Expanded view",
+    taskbarBar: "Taskbar bar",
+    barVisible: "Show a bar on the taskbar",
+    barHint:
+      "A small strip on the taskbar with the tray provider's limits as segmented bars. Drag its grip to sit it wherever suits you; click it for the details. Independent of the notch — use either, both or neither.",
+    barUnsupported: "There is no taskbar to sit on here, so this surface is unavailable.",
     overTaskbar: "Allow it over the taskbar",
     overTaskbarHint:
       "Off by default the notch stays inside the work area, so it can never cover the taskbar or the Dock. Turn this on and it anchors to the whole screen instead — which is the only way to sit on the bar.",
@@ -219,6 +228,7 @@ const ptBR: Messages = {
     weekly_all: "Semanal (todos os modelos)",
     weekly_opus: "Semanal (Opus)",
     weekly_sonnet: "Semanal (Sonnet)",
+    weekly_scoped: "Semanal (escopo)",
     plan: "Plano (ciclo de faturamento)",
     api: "Uso de API incluído",
     on_demand: "Gasto sob demanda",
@@ -238,6 +248,9 @@ const ptBR: Messages = {
     pin: "Clique para fixar aberto",
     unpin: "Clique para soltar",
     noProvider: "nenhum provider ligado",
+  },
+  bar: {
+    drag: "Arraste para mover ao longo da barra de tarefas",
   },
   settings: {
     readOnly:
@@ -265,6 +278,11 @@ const ptBR: Messages = {
       "Esta sessão é Wayland, onde um aplicativo não pode posicionar a própria janela — o notch ficaria à deriva, então está desligado. A bandeja e o popup funcionam normalmente. Entre numa sessão X11 para usá-lo.",
     animation: "Animação",
     notchStyle: "Visão expandida",
+    taskbarBar: "Barra na barra de tarefas",
+    barVisible: "Mostrar uma barra na barra de tarefas",
+    barHint:
+      "Uma faixa pequena na barra de tarefas com os limites do provider da bandeja em blocos. Arraste pela alça para deixar onde preferir; clique para ver os detalhes. Independente do notch — use um, os dois ou nenhum.",
+    barUnsupported: "Não há barra de tarefas onde encaixar aqui, então esta superfície fica indisponível.",
     overTaskbar: "Permitir sobre a barra de tarefas",
     overTaskbarHint:
       "Desligado, o notch fica dentro da área útil e nunca cobre a barra de tarefas nem o Dock. Ligado, ele passa a se ancorar na tela inteira — que é a única forma de ficar sobre a barra.",
@@ -385,6 +403,7 @@ const es: Messages = {
     weekly_all: "Semanal (todos los modelos)",
     weekly_opus: "Semanal (Opus)",
     weekly_sonnet: "Semanal (Sonnet)",
+    weekly_scoped: "Semanal (ámbito)",
     plan: "Plan (ciclo de facturación)",
     api: "Uso de API incluido",
     on_demand: "Gasto a demanda",
@@ -404,6 +423,9 @@ const es: Messages = {
     pin: "Clic para mantener abierto",
     unpin: "Clic para soltar",
     noProvider: "ningún proveedor activo",
+  },
+  bar: {
+    drag: "Arrastra para mover a lo largo de la barra de tareas",
   },
   settings: {
     readOnly:
@@ -431,6 +453,11 @@ const es: Messages = {
       "Esta sesión es Wayland, donde una aplicación no puede colocar su propia ventana — el notch quedaría a la deriva, así que está desactivado. La bandeja y el popup funcionan con normalidad. Inicia una sesión X11 para usarlo.",
     animation: "Animación",
     notchStyle: "Vista expandida",
+    taskbarBar: "Barra en la barra de tareas",
+    barVisible: "Mostrar una barra en la barra de tareas",
+    barHint:
+      "Una franja pequeña en la barra de tareas con los límites del proveedor de la bandeja en bloques. Arrástrala por el asa para dejarla donde prefieras; haz clic para ver los detalles. Independiente del notch — usa uno, ambos o ninguno.",
+    barUnsupported: "Aquí no hay barra de tareas donde encajar, así que esta superficie no está disponible.",
     overTaskbar: "Permitir sobre la barra de tareas",
     overTaskbarHint:
       "Desactivado, el notch se queda dentro del área de trabajo y nunca tapa la barra de tareas ni el Dock. Activado, se ancla a la pantalla completa — que es la única forma de estar sobre la barra.",

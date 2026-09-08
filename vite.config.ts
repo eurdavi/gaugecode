@@ -16,6 +16,7 @@ export default defineConfig(() => ({
         popup: "popup.html",
         settings: "settings.html",
         notch: "notch.html",
+        bar: "bar.html",
       },
     },
   },
