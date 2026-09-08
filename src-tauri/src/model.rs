@@ -14,16 +14,35 @@ pub enum ProviderId {
     Claude,
     Cursor,
     Codex,
+    Glm,
+    Grok,
+    OpenCode,
 }
 
 impl ProviderId {
-    pub const ALL: [ProviderId; 3] = [ProviderId::Claude, ProviderId::Cursor, ProviderId::Codex];
+    pub const ALL: [ProviderId; 6] = [
+        ProviderId::Claude,
+        ProviderId::Cursor,
+        ProviderId::Codex,
+        ProviderId::Glm,
+        ProviderId::Grok,
+        ProviderId::OpenCode,
+    ];
+
+    /// The three that are on by default. The rest are opt-in: most people use
+    /// one or two of these tools, and four rows reading "needs sign-in" would
+    /// look like a broken app rather than an available feature.
+    pub const DEFAULT_ENABLED: [ProviderId; 3] =
+        [ProviderId::Claude, ProviderId::Cursor, ProviderId::Codex];
 
     pub fn display_name(self) -> &'static str {
         match self {
             ProviderId::Claude => "Claude Code",
             ProviderId::Cursor => "Cursor",
             ProviderId::Codex => "Codex",
+            ProviderId::Glm => "GLM",
+            ProviderId::Grok => "Grok",
+            ProviderId::OpenCode => "OpenCode",
         }
     }
 
@@ -33,6 +52,11 @@ impl ProviderId {
             ProviderId::Claude => &["claude", "claude.exe"],
             ProviderId::Cursor => &["cursor", "cursor.exe"],
             ProviderId::Codex => &["codex", "codex.exe"],
+            // GLM usage rides on a key another tool holds, so any of the tools
+            // that can hold one counts as "in use".
+            ProviderId::Glm => &["claude", "claude.exe", "zcode", "zcode.exe"],
+            ProviderId::Grok => &["grok", "grok.exe"],
+            ProviderId::OpenCode => &["opencode", "opencode.exe"],
         }
     }
 }

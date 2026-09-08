@@ -18,7 +18,7 @@ use crate::model::{
     sort_windows, Fidelity, LimitWindow, ProviderAccount, ProviderError, ProviderId,
     ProviderSnapshot, SignInHint, SESSION_WINDOW_ID,
 };
-use crate::providers::UsageProvider;
+use crate::providers::{retry_after_header, UsageProvider};
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const BETA_HEADER: &str = "anthropic-beta";
@@ -316,16 +316,6 @@ fn parse_usage(
     })
 }
 
-/// `Retry-After` in seconds, when present and parseable.
-fn retry_after(headers: &reqwest::header::HeaderMap) -> Duration {
-    headers
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .map(Duration::from_secs)
-        .unwrap_or(Duration::ZERO)
-}
-
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -392,7 +382,9 @@ impl ClaudeProvider {
                 parse_usage(&body, Utc::now(), account)
             }
             401 | 403 => Err(ProviderError::AccessDenied),
-            429 => Err(ProviderError::RateLimited { retry_after: retry_after(response.headers()) }),
+            429 => Err(ProviderError::RateLimited {
+                retry_after: retry_after_header(response.headers()),
+            }),
             other => Err(ProviderError::BadResponse { status: other }),
         }
     }
@@ -578,13 +570,4 @@ mod tests {
         assert!(!valid.is_expired());
     }
 
-    #[test]
-    fn retry_after_header_is_parsed_and_defaults_to_zero() {
-        let mut headers = reqwest::header::HeaderMap::new();
-        assert_eq!(retry_after(&headers), Duration::ZERO);
-        headers.insert(reqwest::header::RETRY_AFTER, "0".parse().unwrap());
-        assert_eq!(retry_after(&headers), Duration::ZERO);
-        headers.insert(reqwest::header::RETRY_AFTER, "90".parse().unwrap());
-        assert_eq!(retry_after(&headers), Duration::from_secs(90));
-    }
 }

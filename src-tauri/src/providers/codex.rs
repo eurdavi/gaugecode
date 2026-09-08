@@ -21,7 +21,7 @@ use crate::model::{
     sort_windows, Fidelity, LimitWindow, ProviderAccount, ProviderError, ProviderId,
     ProviderSnapshot, SignInHint,
 };
-use crate::providers::UsageProvider;
+use crate::providers::{retry_after_header, UsageProvider};
 
 const USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 const ACCOUNT_HEADER: &str = "ChatGPT-Account-Id";
@@ -270,15 +270,6 @@ fn parse_usage(
     })
 }
 
-fn retry_after(headers: &reqwest::header::HeaderMap) -> Duration {
-    headers
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .map(Duration::from_secs)
-        .unwrap_or(Duration::ZERO)
-}
-
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -349,7 +340,7 @@ impl CodexProvider {
                 parse_usage(&body, Utc::now(), Self::account_of(credential))
             }
             401 | 403 => Err(ProviderError::AccessDenied),
-            429 => Err(ProviderError::RateLimited { retry_after: retry_after(response.headers()) }),
+            429 => Err(ProviderError::RateLimited { retry_after: retry_after_header(response.headers()) }),
             other => Err(ProviderError::BadResponse { status: other }),
         }
     }

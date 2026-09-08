@@ -1,0 +1,8 @@
+{
+  "https://auth.x.ai::grok-cli": {
+    "key": "sanitised-token-value",
+    "expires_at": "2026-10-05T08:21:18.802818+00:00",
+    "email": "user@example.com",
+    "oidc_issuer": "https://auth.x.ai"
+  }
+}

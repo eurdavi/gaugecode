@@ -36,6 +36,16 @@ impl DemoProvider {
                 ("primary", "Primary window", 0.91, 46),
                 ("secondary", "Secondary window", 0.33, 8_640),
             ],
+            ProviderId::Glm => vec![
+                ("session", "Current session", 0.12, 210),
+                ("weekly", "Weekly", 0.55, 5_760),
+            ],
+            ProviderId::Grok => vec![("credits", "Grok Build", 0.08, 7_200)],
+            ProviderId::OpenCode => vec![
+                ("rolling", "5h limit", 0.63, 95),
+                ("weekly", "Weekly limit", 0.41, 6_100),
+                ("monthly", "Monthly limit", 0.15, 24_000),
+            ],
         }
     }
 }

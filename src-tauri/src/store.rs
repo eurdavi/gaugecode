@@ -63,9 +63,7 @@ pub const DEFAULT_POLL_SECONDS: u64 = 60;
 
 impl Default for Prefs {
     fn default() -> Self {
-        // Every provider starts on: each one costs nothing until its credential
-        // is found, and a provider left off would look like a broken app.
-        let enabled = ProviderId::ALL.into_iter().map(|id| (id, true)).collect();
+        let enabled = ProviderId::DEFAULT_ENABLED.into_iter().map(|id| (id, true)).collect();
         Self {
             enabled,
             primary: ProviderId::Claude,
@@ -238,10 +236,13 @@ mod tests {
     }
 
     #[test]
-    fn every_provider_starts_enabled_with_claude_on_the_tray() {
+    fn the_three_common_tools_start_on_and_the_rest_are_opt_in() {
         let prefs = Prefs::default();
-        for id in ProviderId::ALL {
+        for id in ProviderId::DEFAULT_ENABLED {
             assert!(prefs.is_enabled(id), "{id:?} should start on");
+        }
+        for id in [ProviderId::Glm, ProviderId::Grok, ProviderId::OpenCode] {
+            assert!(!prefs.is_enabled(id), "{id:?} should be opt-in");
         }
         assert_eq!(prefs.enabled_count(), 3);
         assert_eq!(prefs.primary, ProviderId::Claude);
