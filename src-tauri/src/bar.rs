@@ -218,7 +218,7 @@ pub fn apply(app: &AppHandle) {
     let _ = window.set_position(position);
     let _ = window.set_focusable(false);
     let _ = window.set_visible_on_all_workspaces(true);
-    let _ = window.show();
+    crate::notch::show_overlay(&window);
     let _ = app.emit(BAR_EVENT, BarView { visible: true, horizontal: taskbar.is_horizontal() });
 }
 
@@ -239,7 +239,11 @@ pub fn raise(app: &AppHandle) {
     };
 
     let Some(window) = app.get_webview_window(BAR_WINDOW) else { return };
+    // A wanted strip that never made it on screen (first `show()` ignored, or
+    // `current_taskbar` was briefly empty at launch) has to go through `apply`
+    // again — `SetWindowPos` on a hidden window does nothing.
     if !window.is_visible().unwrap_or(false) {
+        apply(app);
         return;
     }
     // Tauri hands back the `windows` crate's HWND; `windows-sys` wants the bare

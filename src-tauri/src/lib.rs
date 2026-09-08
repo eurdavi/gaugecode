@@ -133,6 +133,7 @@ pub fn run() {
             tray::update(&handle);
             notch::apply(&handle, notch::NotchMode::Folded);
             bar::apply(&handle);
+            notch::spawn_reveal_retries(&handle);
             notch::spawn_pointer_watch(&handle);
             scheduler::spawn(&handle);
             updater::spawn_check(&handle);

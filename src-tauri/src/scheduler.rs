@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter, Manager};
@@ -65,7 +65,8 @@ async fn tick(app: &AppHandle, state: &Arc<AppState>, registry: &Arc<Registry>, 
     // A penalty that outlived a restart still has to be served (SPEC §8).
     if let Some(until) = state.backoff_until(id) {
         tracing::debug!(provider = ?id, until = %until, "still in backoff; not spending an attempt");
-        let status = state.stale_or_error(id, "rate limited".into());
+        let message = state.rate_limited_notice(id).unwrap_or_else(|| "rate limited".into());
+        let status = state.stale_or_error(id, message);
         publish(app, state, id, status);
         return;
     }
@@ -101,7 +102,8 @@ async fn tick(app: &AppHandle, state: &Arc<AppState>, registry: &Arc<Registry>, 
                 until = %until,
                 "rate limited; backing off"
             );
-            let status = state.stale_or_error(id, "rate limited".into());
+            let message = state.rate_limited_notice(id).unwrap_or_else(|| "rate limited".into());
+            let status = state.stale_or_error(id, message);
             publish(app, state, id, status);
         }
         Err(ProviderError::NeedsAuth) => {
@@ -124,8 +126,7 @@ fn publish(app: &AppHandle, state: &Arc<AppState>, id: ProviderId, status: Provi
 
 fn next_delay(state: &Arc<AppState>, id: ProviderId) -> Duration {
     if let Some(until) = state.backoff_until(id) {
-        let seconds = until.signed_duration_since(Utc::now()).num_seconds().max(1) as u64;
-        return Duration::from_secs(seconds);
+        return remaining_backoff(until, state.prefs().poll_interval());
     }
     let prefs = state.prefs();
     if state.is_demo() || provider_is_running(id) {
@@ -133,6 +134,14 @@ fn next_delay(state: &Arc<AppState>, id: ProviderId) -> Duration {
     } else {
         prefs.idle_poll_interval()
     }
+}
+
+/// Sleep the leftover penalty, but no longer than one poll interval, so a
+/// webview that missed the first `usage:status` still hears about the
+/// backoff without us spending a fetch.
+fn remaining_backoff(until: DateTime<Utc>, poll: Duration) -> Duration {
+    let seconds = until.signed_duration_since(Utc::now()).num_seconds().max(1) as u64;
+    Duration::from_secs(seconds).min(poll)
 }
 
 /// Cheap "is this tool open?" check (SPEC §8). A false negative only means we
@@ -152,4 +161,29 @@ fn provider_is_running(id: ProviderId) -> bool {
     });
     tracing::debug!(provider = ?id, running, "process check");
     running
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_live_penalty_is_reannounced_at_the_poll_cadence() {
+        let until = Utc::now() + chrono::Duration::seconds(90);
+        assert_eq!(remaining_backoff(until, Duration::from_secs(60)), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn the_last_slice_of_a_penalty_is_the_time_left() {
+        let until = Utc::now() + chrono::Duration::seconds(12);
+        let got = remaining_backoff(until, Duration::from_secs(60));
+        assert!(got <= Duration::from_secs(12));
+        assert!(got >= Duration::from_secs(11));
+    }
+
+    #[test]
+    fn an_already_elapsed_penalty_still_sleeps_a_second() {
+        let until = Utc::now() - chrono::Duration::seconds(5);
+        assert_eq!(remaining_backoff(until, Duration::from_secs(60)), Duration::from_secs(1));
+    }
 }

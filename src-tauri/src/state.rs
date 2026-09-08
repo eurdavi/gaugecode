@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 
-use crate::i18n::Language;
+use crate::i18n::{fill, Language};
 use crate::model::{Band, Fidelity, ProviderId, ProviderSnapshot, ProviderStatus};
 use crate::notch::{NotchAnimation, NotchEdge, NotchStyle};
 use crate::store::{BackoffRecord, Prefs, Store};
@@ -294,6 +294,27 @@ impl AppState {
         self.read().statuses.get(&id).cloned()
     }
 
+    /// Status the UI should draw: a recorded one, or a live rate-limit
+    /// penalty even before the first scheduler tick has published it.
+    ///
+    /// A persisted backoff with no in-memory status used to look like "waiting
+    /// for the first reading" — the penalty was real, the event had just been
+    /// missed.
+    pub fn status_or_backoff(&self, id: ProviderId) -> Option<ProviderStatus> {
+        if let Some(status) = self.status(id) {
+            return Some(status);
+        }
+        let message = self.rate_limited_notice(id)?;
+        Some(self.stale_or_error(id, message))
+    }
+
+    /// Localized "rate limited — waiting until HH:MM" when a penalty is live.
+    pub fn rate_limited_notice(&self, id: ProviderId) -> Option<String> {
+        let until = self.backoff_until(id)?;
+        let local = until.with_timezone(&Local).format("%H:%M").to_string();
+        Some(fill(self.language().strings().rate_limited_until, &local))
+    }
+
     pub fn record_snapshot(&self, snapshot: ProviderSnapshot) {
         let snapshots = {
             let mut inner = self.write();
@@ -565,6 +586,33 @@ mod tests {
             !state.fetched_within(ProviderId::Cursor, Duration::from_secs(10)),
             "the gap is per provider, not global"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_live_penalty_is_a_status_even_before_the_first_tick() {
+        let dir = std::env::temp_dir().join(format!("gaugecode-backoff-status-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::new(dir.clone());
+        store.save_backoff(&HashMap::from([(
+            ProviderId::Claude,
+            BackoffRecord {
+                until: Utc::now() + chrono::Duration::seconds(90),
+                consecutive: 1,
+            },
+        )]));
+
+        let state = AppState::load(store, false, Language::English);
+        assert!(state.status(ProviderId::Claude).is_none(), "nothing published yet");
+        match state.status_or_backoff(ProviderId::Claude) {
+            Some(ProviderStatus::Error { message }) => {
+                assert!(
+                    message.contains("waiting until") || message.contains("aguardando até"),
+                    "got {message}"
+                );
+            }
+            other => panic!("expected a rate-limit error, got {other:?}"),
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 }

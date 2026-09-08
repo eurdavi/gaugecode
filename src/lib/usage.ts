@@ -30,31 +30,45 @@ export function useProviders() {
   }, []);
 
   useEffect(() => {
-    void reload();
+    let cancelled = false;
 
     const unlisten = Promise.all([
       // Windows exist before the Rust state does, so the first `get_state` can
       // come back empty. `prefs:changed` fires once the backend is ready.
       listen(PREFS_EVENT, () => void reload()),
       listen<ProviderSnapshot>(SNAPSHOT_EVENT, ({ payload }) => {
-        setProviders((current) =>
-          current?.map((view) =>
+        setProviders((current) => {
+          if (!current) {
+            void reload();
+            return current;
+          }
+          return current.map((view) =>
             view.id === payload.provider
               ? { ...view, snapshot: payload, account: payload.account ?? view.account }
               : view,
-          ) ?? current,
-        );
+          );
+        });
       }),
       listen<StatusEvent>(STATUS_EVENT, ({ payload }) => {
-        setProviders((current) =>
-          current?.map((view) =>
+        setProviders((current) => {
+          if (!current) {
+            void reload();
+            return current;
+          }
+          return current.map((view) =>
             view.id === payload.provider ? { ...view, status: payload.status } : view,
-          ) ?? current,
-        );
+          );
+        });
       }),
-    ]);
+    ]).then(async (fns) => {
+      // Subscribe first, then read: an event that fires while invoke is in
+      // flight is applied, not dropped.
+      if (!cancelled) await reload();
+      return fns;
+    });
 
     return () => {
+      cancelled = true;
       void unlisten.then((fns) => fns.forEach((fn) => fn()));
     };
   }, [reload]);
@@ -70,13 +84,21 @@ export function usePrefs() {
   const [prefs, setPrefs] = useState<PrefsView | null>(null);
 
   useEffect(() => {
-    void invoke<PrefsView>("get_prefs")
-      .then(setPrefs)
-      .catch(() => {
-        /* not managed yet; the event below delivers it */
-      });
-    const unlisten = listen<PrefsView>(PREFS_EVENT, ({ payload }) => setPrefs(payload));
+    let cancelled = false;
+    const unlisten = listen<PrefsView>(PREFS_EVENT, ({ payload }) => setPrefs(payload)).then(
+      async (fn) => {
+        if (!cancelled) {
+          try {
+            setPrefs(await invoke<PrefsView>("get_prefs"));
+          } catch {
+            /* not managed yet; the event above delivers it */
+          }
+        }
+        return fn;
+      },
+    );
     return () => {
+      cancelled = true;
       void unlisten.then((fn) => fn());
     };
   }, []);
@@ -105,14 +127,25 @@ export function useNotch() {
   const [notch, setNotch] = useState<NotchView | null>(null);
 
   useEffect(() => {
-    void invoke<NotchView>("get_notch")
-      .then(setNotch)
-      .catch(() => {
-        /* not managed yet; `apply` emits the state at the end of setup */
-      });
-    const unlisten = listen<NotchView>(NOTCH_EVENT, ({ payload }) => setNotch(payload));
+    let cancelled = false;
+    const load = () =>
+      invoke<NotchView>("get_notch")
+        .then(setNotch)
+        .catch(() => {
+          /* not managed yet; `apply` emits the state at the end of setup */
+        });
+
+    const unlisten = Promise.all([
+      listen<NotchView>(NOTCH_EVENT, ({ payload }) => setNotch(payload)),
+      listen(PREFS_EVENT, () => void load()),
+    ]).then(async (fns) => {
+      if (!cancelled) await load();
+      return fns;
+    });
+
     return () => {
-      void unlisten.then((fn) => fn());
+      cancelled = true;
+      void unlisten.then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
 

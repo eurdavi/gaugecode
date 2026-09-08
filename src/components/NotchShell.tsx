@@ -44,9 +44,9 @@ export function NotchShell() {
   const messages = useMessages(prefs);
   const reducedMotion = usePrefersReducedMotion();
 
-  if (!notch?.visible || providers === null) return null;
+  if (!notch?.visible) return null;
 
-  const shown = providers.filter((view) => view.enabled);
+  const shown = (providers ?? []).filter((view) => view.enabled);
   const expanded = notch.mode !== "folded";
   // "None" and the OS-level reduced-motion setting both mean: just switch.
   const animated = notch.animation !== "instant" && !reducedMotion;

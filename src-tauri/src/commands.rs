@@ -3,12 +3,11 @@
 
 use std::sync::Arc;
 
-use chrono::Local;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::bar;
-use crate::i18n::{fill, Language};
+use crate::i18n::Language;
 use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus, SignInHint};
 use crate::notch::{self, NotchAnimation, NotchEdge, NotchStyle};
 use crate::providers::Registry;
@@ -133,7 +132,7 @@ pub fn get_state(
                 id,
                 name: id.display_name(),
                 enabled,
-                status: state.status(id),
+                status: state.status_or_backoff(id),
                 snapshot: state.visible_snapshot(id),
                 windows,
                 // Reads the credential only; still no network on this path.
@@ -190,12 +189,11 @@ fn view_of(state: &AppState) -> PrefsView {
 #[tauri::command]
 pub fn refresh_now(state: State<'_, Arc<AppState>>) -> Option<String> {
     let primary = state.prefs().primary;
-    if let Some(until) = state.backoff_until(primary) {
-        let local = until.with_timezone(&Local).format("%H:%M").to_string();
-        return Some(fill(state.language().strings().rate_limited_until, &local));
-    }
+    let notice = state.rate_limited_notice(primary);
+    // Always wake the loops: during a penalty they re-publish status (no
+    // fetch), and a webview that missed the first event still catches up.
     state.request_refresh();
-    None
+    notice
 }
 
 #[tauri::command]

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isDimmed, primaryWindow, useMessages, usePrefs, useProviders } from "../lib/usage";
-import { BAR_EVENT, type BarView, type ProviderView } from "../types/usage";
+import { BAR_EVENT, PREFS_EVENT, type BarView, type ProviderView } from "../types/usage";
 import { UsageBar } from "./UsageBar";
 
 /** A taskbar is around 48 px tall; two rows of 9 px type is what fits. */
@@ -22,14 +22,25 @@ export function TaskbarBar() {
   const [bar, setBar] = useState<BarView | null>(null);
 
   useEffect(() => {
-    void invoke<BarView>("get_bar")
-      .then(setBar)
-      .catch(() => {
-        /* not managed yet; the event delivers it */
-      });
-    const unlisten = listen<BarView>(BAR_EVENT, ({ payload }) => setBar(payload));
+    let cancelled = false;
+    const load = () =>
+      invoke<BarView>("get_bar")
+        .then(setBar)
+        .catch(() => {
+          /* not managed yet; the event delivers it */
+        });
+
+    const unlisten = Promise.all([
+      listen<BarView>(BAR_EVENT, ({ payload }) => setBar(payload)),
+      listen(PREFS_EVENT, () => void load()),
+    ]).then(async (fns) => {
+      if (!cancelled) await load();
+      return fns;
+    });
+
     return () => {
-      void unlisten.then((fn) => fn());
+      cancelled = true;
+      void unlisten.then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
 

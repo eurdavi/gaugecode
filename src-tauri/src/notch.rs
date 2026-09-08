@@ -374,8 +374,49 @@ pub fn apply(app: &AppHandle, mode: NotchMode) {
     if let Err(error) = window.set_ignore_cursor_events(!mode.is_expanded()) {
         tracing::warn!(%error, "click-through is unavailable; the folded notch will take clicks");
     }
-    let _ = window.show();
+    show_overlay(&window);
     emit(app, view_of(&prefs, mode, true));
+}
+
+/// Transparent always-on-top windows start hidden. WebView2 often ignores
+/// the first `show()` if the HWND is not ready, and `ShowWindow(SW_SHOW)` can
+/// refuse a window that is not focusable — which is exactly these overlays.
+pub(crate) fn show_overlay(window: &tauri::WebviewWindow) {
+    let _ = window.show();
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+            SW_SHOWNOACTIVATE,
+        };
+        let Ok(hwnd) = window.hwnd() else { return };
+        unsafe {
+            ShowWindow(hwnd.0, SW_SHOWNOACTIVATE);
+            SetWindowPos(
+                hwnd.0,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+    }
+}
+
+/// A few delayed `apply`s after setup, so a relaunch still shows the overlays
+/// once the webview exists — without the user having to toggle them in Settings.
+pub fn spawn_reveal_retries(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for wait_ms in [250_u64, 550, 1700] {
+            tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+            let mode = app.state::<NotchState>().mode();
+            apply(&app, mode);
+            crate::bar::apply(&app);
+        }
+    });
 }
 
 fn emit(app: &AppHandle, view: NotchView) {
@@ -437,6 +478,15 @@ fn tick(app: &AppHandle) {
 
     if !prefs.notch_visible || !positioning_supported() {
         return;
+    }
+
+    // The first `show()` in `setup` can be ignored. Keep trying until the
+    // window is actually on screen, rather than waiting for a Settings toggle.
+    if let Some(window) = app.get_webview_window(NOTCH_WINDOW) {
+        if !window.is_visible().unwrap_or(false) {
+            apply(app, app.state::<NotchState>().mode());
+            return;
+        }
     }
 
     let Some((work_area, scale)) = work_area_of(app, prefs.notch_over_taskbar) else { return };
