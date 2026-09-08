@@ -79,6 +79,51 @@ pub struct Strings {
     pub needs_sign_in: &'static str,
     /// `{}` = local clock time the penalty ends.
     pub rate_limited_until: &'static str,
+
+    // Limit-window names. These come from the adapters as English text, but the
+    // window *id* is stable and language independent, so the id is what gets
+    // translated and the adapter's label is only a fallback for ids we do not
+    // know about yet.
+    pub window_session: &'static str,
+    pub window_weekly: &'static str,
+    pub window_weekly_all: &'static str,
+    pub window_weekly_opus: &'static str,
+    pub window_weekly_sonnet: &'static str,
+    pub window_plan: &'static str,
+    pub window_api: &'static str,
+    pub window_on_demand: &'static str,
+    pub window_primary: &'static str,
+    pub window_secondary: &'static str,
+    pub window_rolling: &'static str,
+    pub window_monthly: &'static str,
+    pub window_credits: &'static str,
+    pub window_mcp: &'static str,
+}
+
+/// Localised name for a limit window, by id.
+///
+/// Unknown ids keep whatever the adapter called it: a vendor that adds a window
+/// tomorrow should show up with its own name rather than disappear.
+pub fn window_label(language: Language, id: &str, fallback: &str) -> String {
+    let text = language.strings();
+    let translated = match id {
+        "session" => text.window_session,
+        "weekly" => text.window_weekly,
+        "weekly_all" => text.window_weekly_all,
+        "weekly_opus" => text.window_weekly_opus,
+        "weekly_sonnet" => text.window_weekly_sonnet,
+        "plan" => text.window_plan,
+        "api" => text.window_api,
+        "on_demand" => text.window_on_demand,
+        "primary" => text.window_primary,
+        "secondary" => text.window_secondary,
+        "rolling" => text.window_rolling,
+        "monthly" => text.window_monthly,
+        "credits" => text.window_credits,
+        "mcp" => text.window_mcp,
+        _ => return fallback.to_string(),
+    };
+    translated.to_string()
 }
 
 /// Replaces the single `{}` slot in a template.
@@ -102,6 +147,21 @@ static EN: Strings = Strings {
     age_old: "{} old",
     needs_sign_in: "needs sign-in",
     rate_limited_until: "Rate limited — waiting until {}",
+
+    window_session: "Session (5h)",
+    window_weekly: "Weekly",
+    window_weekly_all: "Weekly (all models)",
+    window_weekly_opus: "Weekly (Opus)",
+    window_weekly_sonnet: "Weekly (Sonnet)",
+    window_plan: "Plan (billing cycle)",
+    window_api: "Included API usage",
+    window_on_demand: "On-demand spend",
+    window_primary: "Primary limit",
+    window_secondary: "Secondary limit",
+    window_rolling: "Rolling (5h)",
+    window_monthly: "Monthly",
+    window_credits: "Credits",
+    window_mcp: "MCP (1 month)",
 };
 
 static PT_BR: Strings = Strings {
@@ -120,6 +180,21 @@ static PT_BR: Strings = Strings {
     age_old: "há {}",
     needs_sign_in: "precisa de login",
     rate_limited_until: "Limite atingido — aguardando até {}",
+
+    window_session: "Sessão (5h)",
+    window_weekly: "Semanal",
+    window_weekly_all: "Semanal (todos os modelos)",
+    window_weekly_opus: "Semanal (Opus)",
+    window_weekly_sonnet: "Semanal (Sonnet)",
+    window_plan: "Plano (ciclo de faturamento)",
+    window_api: "Uso de API incluído",
+    window_on_demand: "Gasto sob demanda",
+    window_primary: "Limite principal",
+    window_secondary: "Limite secundário",
+    window_rolling: "Contínuo (5h)",
+    window_monthly: "Mensal",
+    window_credits: "Créditos",
+    window_mcp: "MCP (1 mês)",
 };
 
 static ES: Strings = Strings {
@@ -138,6 +213,21 @@ static ES: Strings = Strings {
     age_old: "hace {}",
     needs_sign_in: "requiere inicio de sesión",
     rate_limited_until: "Límite alcanzado — esperando hasta {}",
+
+    window_session: "Sesión (5h)",
+    window_weekly: "Semanal",
+    window_weekly_all: "Semanal (todos los modelos)",
+    window_weekly_opus: "Semanal (Opus)",
+    window_weekly_sonnet: "Semanal (Sonnet)",
+    window_plan: "Plan (ciclo de facturación)",
+    window_api: "Uso de API incluido",
+    window_on_demand: "Gasto a demanda",
+    window_primary: "Límite principal",
+    window_secondary: "Límite secundario",
+    window_rolling: "Continuo (5h)",
+    window_monthly: "Mensual",
+    window_credits: "Créditos",
+    window_mcp: "MCP (1 mes)",
 };
 
 #[cfg(test)]
@@ -182,5 +272,49 @@ mod tests {
     fn fill_replaces_the_slot_once() {
         assert_eq!(fill("resets in {}", "2h 13m"), "resets in 2h 13m");
         assert_eq!(fill("no slot", "x"), "no slot");
+    }
+
+    #[test]
+    fn a_known_window_id_is_translated_and_the_adapter_label_ignored() {
+        let pt = Language::BrazilianPortuguese;
+        assert_eq!(window_label(pt, "session", "Session (5h)"), "Sessão (5h)");
+        assert_eq!(window_label(pt, "plan", "Plan (billing cycle)"), "Plano (ciclo de faturamento)");
+        assert_eq!(window_label(pt, "api", "Included API usage"), "Uso de API incluído");
+        assert_eq!(window_label(Language::Spanish, "monthly", "Monthly limit"), "Mensual");
+    }
+
+    #[test]
+    fn an_unknown_window_id_keeps_the_name_the_vendor_gave_it() {
+        // A window a vendor adds tomorrow must show up under its own name
+        // rather than vanish because we have no translation for it.
+        assert_eq!(
+            window_label(Language::BrazilianPortuguese, "weekly_haiku", "Weekly Haiku"),
+            "Weekly Haiku"
+        );
+        assert_eq!(
+            window_label(Language::BrazilianPortuguese, "window-3x2", "Usage (2 h)"),
+            "Usage (2 h)"
+        );
+    }
+
+    #[test]
+    fn every_window_name_is_translated_in_every_language() {
+        let ids = [
+            "session", "weekly", "weekly_all", "weekly_opus", "weekly_sonnet", "plan", "api",
+            "on_demand", "primary", "secondary", "rolling", "monthly", "credits", "mcp",
+        ];
+        for id in ids {
+            let english = window_label(Language::English, id, "FALLBACK");
+            assert_ne!(english, "FALLBACK", "{id} is missing from the English catalogue");
+            for language in [Language::BrazilianPortuguese, Language::Spanish] {
+                let translated = window_label(language, id, "FALLBACK");
+                assert_ne!(translated, "FALLBACK", "{id} is missing from {language:?}");
+                // A few names are genuinely identical across languages (MCP,
+                // Opus), so only the ones with real words are compared.
+                if !id.contains("opus") && !id.contains("sonnet") && id != "mcp" {
+                    assert_ne!(translated, english, "{id} was left in English in {language:?}");
+                }
+            }
+        }
     }
 }

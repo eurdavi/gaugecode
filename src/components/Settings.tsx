@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { LANGUAGES, connectSteps, type Messages } from "../i18n";
+import { LANGUAGES, connectSteps, windowLabel, type Messages } from "../i18n";
 import { describeStatus, setPref, useMessages, usePrefs, useProviders } from "../lib/usage";
 import { Onboarding } from "./Onboarding";
 import {
@@ -11,12 +11,14 @@ import {
   type Language,
   type NotchAnimation,
   type NotchEdge,
+  type NotchStyle,
   type PrefsView,
   type ProviderView,
 } from "../types/usage";
 
 const EDGES: NotchEdge[] = ["top", "bottom", "left", "right"];
 const ANIMATIONS: NotchAnimation[] = ["slide", "fade", "instant"];
+const STYLES: NotchStyle[] = ["rings", "bars"];
 /** Round numbers between the bounds Rust enforces. */
 const POLL_CHOICES = [30, 60, 120, 300, 900];
 
@@ -240,7 +242,7 @@ function ProviderRow({
                   }).then(onChanged);
                 }}
               />
-              {window.label}
+              {windowLabel(messages, window.id, window.label)}
             </label>
           ))}
           <p className="mt-1 px-1 text-[10px] text-neutral-400 dark:text-neutral-500">
@@ -459,6 +461,18 @@ export function Settings() {
               </div>
               <div className="border-t border-neutral-200 dark:border-neutral-800">
                 <ChoiceRow
+                  label={messages.settings.notchStyle}
+                  options={STYLES.map((style) => ({
+                    value: style,
+                    label: messages.notchStyle[style],
+                  }))}
+                  selected={prefs.notch_style}
+                  disabled={!prefs.notch_visible}
+                  onSelect={(style) => void setPref({ key: "notch_style", style })}
+                />
+              </div>
+              <div className="border-t border-neutral-200 dark:border-neutral-800">
+                <ChoiceRow
                   label={messages.settings.animation}
                   options={ANIMATIONS.map((animation) => ({
                     value: animation,
@@ -468,6 +482,17 @@ export function Settings() {
                   disabled={!prefs.notch_visible}
                   onSelect={(animation) => void setPref({ key: "notch_animation", animation })}
                 />
+              </div>
+              <div className="border-t border-neutral-200 dark:border-neutral-800">
+                <Toggle
+                  label={messages.settings.overTaskbar}
+                  checked={prefs.notch_over_taskbar}
+                  disabled={!prefs.notch_visible}
+                  onChange={(over) => void setPref({ key: "notch_over_taskbar", over })}
+                />
+                <p className="px-4 pb-3 text-[11px] text-neutral-400 dark:text-neutral-500">
+                  {messages.settings.overTaskbarHint}
+                </p>
               </div>
             </>
           )}

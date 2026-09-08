@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Messages } from "../i18n";
+import { windowLabel, type Messages } from "../i18n";
 import {
   BAND_STROKE,
   bandOf,
@@ -42,7 +42,7 @@ export function ProviderCard({ view, messages }: { view: ProviderView; messages:
                 <li key={window.id} className="text-xs">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-neutral-600 dark:text-neutral-300">
-                      {window.label}
+                      {windowLabel(messages, window.id, window.label)}
                     </span>
                     <span className="shrink-0 font-mono tabular-nums">
                       {Math.round(window.used_fraction * 100)}%

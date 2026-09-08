@@ -1,0 +1,52 @@
+<!--
+  GaugeCode mark. Source for every bundled icon: `pnpm tauri icon app-icon.svg`
+  regenerates src-tauri/icons/ from this file, so this is the only place the
+  logo is drawn.
+
+  A three-quarter dial with a needle, in red, white and black. The dial is
+  filled to roughly two thirds so it reads as an instrument with a reading on
+  it rather than as a loading spinner, and the gradient follows the sweep so
+  the far end — the one you do not want to reach — is the red one.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232326" />
+      <stop offset="1" stop-color="#000000" />
+    </linearGradient>
+    <!-- Runs bottom-left to top-right, which is the direction the dial travels. -->
+    <linearGradient id="dial" x1="0.12" y1="0.88" x2="0.88" y2="0.12">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.30" stop-color="#ffe8e7" />
+      <stop offset="0.62" stop-color="#e8352f" />
+      <stop offset="1" stop-color="#a3120e" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#plate)" />
+
+  <!-- The whole scale, dark enough to read against the plate. -->
+  <path
+    d="M 292.8 731.2 A 310 310 0 1 1 731.2 731.2"
+    fill="none"
+    stroke="#3c3c40"
+    stroke-width="104"
+    stroke-linecap="round"
+  />
+  <!-- Filled to ~62% of the sweep. -->
+  <path
+    d="M 292.8 731.2 A 310 310 0 0 1 677.9 250.1"
+    fill="none"
+    stroke="url(#dial)"
+    stroke-width="104"
+    stroke-linecap="round"
+  />
+
+  <!-- Needle, pointing at the end of the filled arc. A dark edge keeps it
+       legible where it crosses the white part of the dial. -->
+  <path d="M 512 512 L 619 343" stroke="#000000" stroke-width="66" stroke-linecap="round" />
+  <path d="M 512 512 L 619 343" stroke="#ffffff" stroke-width="40" stroke-linecap="round" />
+  <circle cx="512" cy="512" r="86" fill="#000000" />
+  <circle cx="512" cy="512" r="62" fill="#e8352f" />
+  <circle cx="512" cy="512" r="22" fill="#ffffff" />
+</svg>

@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 
 use crate::i18n::Language;
 use crate::model::{Band, Fidelity, ProviderId, ProviderSnapshot, ProviderStatus};
-use crate::notch::{NotchAnimation, NotchEdge};
+use crate::notch::{NotchAnimation, NotchEdge, NotchStyle};
 use crate::store::{BackoffRecord, Prefs, Store};
 
 // The polling cadence is a preference now: see `Prefs::poll_interval` and
@@ -194,6 +194,14 @@ impl AppState {
 
     pub fn set_notch_animation(&self, animation: NotchAnimation) {
         self.update_prefs(|inner| inner.prefs.notch_animation = animation);
+    }
+
+    pub fn set_notch_style(&self, style: NotchStyle) {
+        self.update_prefs(|inner| inner.prefs.notch_style = style);
+    }
+
+    pub fn set_notch_over_taskbar(&self, over: bool) {
+        self.update_prefs(|inner| inner.prefs.notch_over_taskbar = over);
     }
 
     /// `None` goes back to following the operating system.

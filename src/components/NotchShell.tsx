@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { windowLabel } from "../i18n";
 import {
   BAND_STROKE,
   bandOf,
@@ -14,6 +15,7 @@ import {
 } from "../lib/usage";
 import type { NotchEdge, NotchView, ProviderView } from "../types/usage";
 import { Ring } from "./Ring";
+import { UsageBar } from "./UsageBar";
 
 /** Long enough to read as a movement, short enough not to feel laggy. */
 const DURATION_MS = 220;
@@ -78,6 +80,10 @@ export function NotchShell() {
         >
           {shown.length === 0 ? (
             <p className="m-auto px-4 text-[11px] text-neutral-400">{messages.notch.noProvider}</p>
+          ) : notch.style === "bars" ? (
+            shown.map((view) => (
+              <BarsRow key={view.id} view={view} messages={messages} />
+            ))
           ) : (
             shown.map((view) => (
               <ExpandedRow
@@ -155,6 +161,34 @@ function FoldedPill({
   );
 }
 
+/**
+ * The bar style: the provider's name once, then every limit window it reported
+ * as its own row. More lines than the ring style, but each number is spelled
+ * out rather than encoded in an arc.
+ */
+function BarsRow({ view, messages }: { view: ProviderView; messages: ReturnType<typeof useMessages> }) {
+  const dimmed = isDimmed(view.status);
+  const windows = view.snapshot?.windows ?? [];
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="truncate text-[11px] font-medium">{view.name}</p>
+        {windows.length === 0 && (
+          <p className="shrink-0 text-[10px] text-neutral-400">
+            {view.implemented
+              ? describeStatus(view.status, messages)
+              : messages.status.notImplemented}
+          </p>
+        )}
+      </div>
+      {windows.map((limit) => (
+        <UsageBar key={limit.id} window={limit} messages={messages} dimmed={dimmed} />
+      ))}
+    </div>
+  );
+}
+
 function ExpandedRow({
   view,
   vertical,
@@ -181,10 +215,11 @@ function ExpandedRow({
       <div className="min-w-0">
         <p className="truncate text-xs font-medium">{view.name}</p>
         <p className="truncate text-[10px] text-neutral-400">
-          {main?.label ??
-            (view.implemented
+          {main
+            ? windowLabel(messages, main.id, main.label)
+            : view.implemented
               ? describeStatus(view.status, messages)
-              : messages.status.notImplemented)}
+              : messages.status.notImplemented}
         </p>
         {reset && <p className="truncate text-[10px] text-neutral-500">{reset}</p>}
       </div>

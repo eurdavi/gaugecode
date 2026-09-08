@@ -33,6 +33,12 @@ const EXPANDED_WIDTH_VERTICAL: f64 = 196.0;
 const EXPANDED_LENGTH_PER_PROVIDER_VERTICAL: f64 = 74.0;
 const EXPANDED_HEIGHT_HORIZONTAL: f64 = 104.0;
 const EXPANDED_LENGTH_PER_PROVIDER_HORIZONTAL: f64 = 150.0;
+/// The bar style trades the rings for one row per limit window, so it needs
+/// more width and more height per provider.
+const BARS_WIDTH_VERTICAL: f64 = 268.0;
+const BARS_LENGTH_PER_PROVIDER_VERTICAL: f64 = 62.0;
+const BARS_HEIGHT_HORIZONTAL: f64 = 74.0;
+const BARS_LENGTH_PER_PROVIDER_HORIZONTAL: f64 = 214.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -49,6 +55,18 @@ impl NotchEdge {
     fn is_vertical(self) -> bool {
         matches!(self, NotchEdge::Left | NotchEdge::Right)
     }
+}
+
+/// What the expanded notch shows. Unlike the animation this *does* affect the
+/// geometry, because a row of bars needs a different footprint from a ring.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotchStyle {
+    /// One progress ring per provider.
+    #[default]
+    Rings,
+    /// One segmented bar per limit window, with its percentage and reset.
+    Bars,
 }
 
 /// How the notch moves between folded and expanded. Purely a UI concern — the
@@ -120,14 +138,26 @@ impl Rect {
 ///
 /// Everything is computed from the work area, so the result can never overlap
 /// the taskbar or the Dock — that is the M2 done criterion (SPEC §12).
-pub fn layout(work_area: Rect, scale: f64, edge: NotchEdge, mode: NotchMode, providers: u32) -> Rect {
+pub fn layout(
+    work_area: Rect,
+    scale: f64,
+    edge: NotchEdge,
+    mode: NotchMode,
+    providers: u32,
+    style: NotchStyle,
+) -> Rect {
     let providers = providers.max(1) as f64;
     let px = |logical: f64| (logical * scale).round().max(1.0) as u32;
+    let bars = style == NotchStyle::Bars;
 
     let (width, height) = match (edge.is_vertical(), mode.is_expanded()) {
         (true, false) => (
             px(FOLDED_THICKNESS),
             px((FOLDED_LENGTH_PER_PROVIDER * providers).max(FOLDED_MIN_LENGTH)),
+        ),
+        (true, true) if bars => (
+            px(BARS_WIDTH_VERTICAL),
+            px(EXPANDED_PADDING + BARS_LENGTH_PER_PROVIDER_VERTICAL * providers),
         ),
         (true, true) => (
             px(EXPANDED_WIDTH_VERTICAL),
@@ -136,6 +166,10 @@ pub fn layout(work_area: Rect, scale: f64, edge: NotchEdge, mode: NotchMode, pro
         (false, false) => (
             px((FOLDED_LENGTH_PER_PROVIDER * providers).max(FOLDED_MIN_LENGTH)),
             px(FOLDED_THICKNESS),
+        ),
+        (false, true) if bars => (
+            px(EXPANDED_PADDING + BARS_LENGTH_PER_PROVIDER_HORIZONTAL * providers),
+            px(BARS_HEIGHT_HORIZONTAL),
         ),
         (false, true) => (
             px(EXPANDED_PADDING + EXPANDED_LENGTH_PER_PROVIDER_HORIZONTAL * providers),
@@ -171,14 +205,20 @@ fn centre(start: i32, available: u32, size: u32) -> i32 {
 /// the mode: resizing a window cannot be animated smoothly, so instead the
 /// window stays put and the UI slides the card inside it. While folded the
 /// window is click-through, so the extra area costs nothing.
-pub fn window_rect(work_area: Rect, scale: f64, edge: NotchEdge, providers: u32) -> Rect {
-    layout(work_area, scale, edge, NotchMode::Pinned, providers)
+pub fn window_rect(
+    work_area: Rect,
+    scale: f64,
+    edge: NotchEdge,
+    providers: u32,
+    style: NotchStyle,
+) -> Rect {
+    layout(work_area, scale, edge, NotchMode::Pinned, providers, style)
 }
 
 /// Where the folded sliver is drawn inside the window. This — not the window —
 /// is the area the pointer has to reach for the notch to peek.
 pub fn pill_rect(work_area: Rect, scale: f64, edge: NotchEdge, providers: u32) -> Rect {
-    layout(work_area, scale, edge, NotchMode::Folded, providers)
+    layout(work_area, scale, edge, NotchMode::Folded, providers, NotchStyle::Rings)
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +231,7 @@ pub struct NotchView {
     pub edge: NotchEdge,
     pub visible: bool,
     pub animation: NotchAnimation,
+    pub style: NotchStyle,
     /// Thickness of the folded sliver in CSS pixels, so the UI draws it exactly
     /// where the pointer watch expects it to be.
     pub folded_thickness: f64,
@@ -248,7 +289,13 @@ pub fn positioning_supported() -> bool {
     true
 }
 
-fn work_area_of(app: &AppHandle) -> Option<(Rect, f64)> {
+/// The rectangle the notch is anchored to.
+///
+/// Normally the monitor's **work area**, which already excludes the taskbar and
+/// the Dock — that is what keeps the overlay off them. `over_taskbar` anchors to
+/// the full monitor instead, which is the only way to sit on the bar; it is off
+/// by default and only ever on because the user asked for it.
+fn work_area_of(app: &AppHandle, over_taskbar: bool) -> Option<(Rect, f64)> {
     // Follow the monitor the pointer is on, falling back to the primary one.
     let monitor = app
         .cursor_position()
@@ -256,14 +303,15 @@ fn work_area_of(app: &AppHandle) -> Option<(Rect, f64)> {
         .and_then(|point| app.monitor_from_point(point.x, point.y).ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten())?;
 
-    let area = monitor.work_area();
+    let (position, size) = if over_taskbar {
+        (*monitor.position(), *monitor.size())
+    } else {
+        let area = monitor.work_area();
+        (area.position, area.size)
+    };
+
     Some((
-        Rect {
-            x: area.position.x,
-            y: area.position.y,
-            width: area.size.width,
-            height: area.size.height,
-        },
+        Rect { x: position.x, y: position.y, width: size.width, height: size.height },
         monitor.scale_factor(),
     ))
 }
@@ -302,8 +350,14 @@ pub fn apply(app: &AppHandle, mode: NotchMode) {
         return;
     }
 
-    if let Some((work_area, scale)) = work_area_of(app) {
-        let rect = window_rect(work_area, scale, prefs.notch_edge, enabled_provider_count(app));
+    if let Some((work_area, scale)) = work_area_of(app, prefs.notch_over_taskbar) {
+        let rect = window_rect(
+            work_area,
+            scale,
+            prefs.notch_edge,
+            enabled_provider_count(app),
+            prefs.notch_style,
+        );
         let _ = window.set_size(PhysicalSize::new(rect.width, rect.height));
         let _ = window.set_position(PhysicalPosition::new(rect.x, rect.y));
         app.state::<NotchState>().lock().last_work_area = Some(work_area);
@@ -333,6 +387,7 @@ fn view_of(prefs: &Prefs, mode: NotchMode, visible: bool) -> NotchView {
         edge: prefs.notch_edge,
         visible,
         animation: prefs.notch_animation,
+        style: prefs.notch_style,
         folded_thickness: thickness,
         folded_length: length,
     }
@@ -363,7 +418,7 @@ fn tick(app: &AppHandle) {
         return;
     }
 
-    let Some((work_area, scale)) = work_area_of(app) else { return };
+    let Some((work_area, scale)) = work_area_of(app, prefs.notch_over_taskbar) else { return };
     let state = app.state::<NotchState>();
     let mode = state.mode();
 
@@ -394,7 +449,8 @@ fn tick(app: &AppHandle) {
         NotchMode::Peek => {
             // Expanded, the whole window is the card, so leaving it means
             // leaving the window.
-            let rect = window_rect(work_area, scale, prefs.notch_edge, providers);
+            let rect =
+                window_rect(work_area, scale, prefs.notch_edge, providers, prefs.notch_style);
             if rect.contains(cursor.x, cursor.y) {
                 state.lock().left_at = None;
                 return;
@@ -416,6 +472,21 @@ fn tick(app: &AppHandle) {
 mod tests {
     use super::*;
 
+        /// The default style, so each test says only what it is actually about.
+    fn rings(
+        area: Rect,
+        scale: f64,
+        edge: NotchEdge,
+        mode: NotchMode,
+        providers: u32,
+    ) -> Rect {
+        layout(area, scale, edge, mode, providers, NotchStyle::Rings)
+    }
+
+    fn rings_window(area: Rect, scale: f64, edge: NotchEdge, providers: u32) -> Rect {
+        window_rect(area, scale, edge, providers, NotchStyle::Rings)
+    }
+
     const WORK_AREA: Rect = Rect { x: 0, y: 0, width: 1920, height: 1032 };
 
     fn all_edges() -> [NotchEdge; 4] {
@@ -435,7 +506,7 @@ mod tests {
             for mode in [NotchMode::Folded, NotchMode::Peek, NotchMode::Pinned] {
                 for providers in 1..=3 {
                     for scale in [1.0, 1.25, 1.5, 2.0] {
-                        let rect = layout(WORK_AREA, scale, edge, mode, providers);
+                        let rect = rings(WORK_AREA, scale, edge, mode, providers);
                         assert!(
                             contains_rect(WORK_AREA, rect),
                             "{edge:?}/{mode:?} x{scale} with {providers} providers escaped: {rect:?}"
@@ -459,7 +530,7 @@ mod tests {
         for area in areas {
             for edge in all_edges() {
                 for mode in [NotchMode::Folded, NotchMode::Pinned] {
-                    let rect = layout(area, 1.0, edge, mode, 3);
+                    let rect = rings(area, 1.0, edge, mode, 3);
                     assert!(contains_rect(area, rect), "{edge:?}/{mode:?} left {area:?}: {rect:?}");
                 }
             }
@@ -468,36 +539,36 @@ mod tests {
 
     #[test]
     fn folded_hugs_its_edge_and_expanding_keeps_it_there() {
-        let folded = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
-        let expanded = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
+        let folded = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
+        let expanded = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
         assert_eq!(folded.right(), WORK_AREA.right());
         assert_eq!(expanded.right(), WORK_AREA.right());
         assert!(expanded.width > folded.width);
 
-        let folded = layout(WORK_AREA, 1.0, NotchEdge::Left, NotchMode::Folded, 3);
+        let folded = rings(WORK_AREA, 1.0, NotchEdge::Left, NotchMode::Folded, 3);
         assert_eq!(folded.x, WORK_AREA.x);
 
-        let folded = layout(WORK_AREA, 1.0, NotchEdge::Top, NotchMode::Folded, 3);
+        let folded = rings(WORK_AREA, 1.0, NotchEdge::Top, NotchMode::Folded, 3);
         assert_eq!(folded.y, WORK_AREA.y);
 
-        let folded = layout(WORK_AREA, 1.0, NotchEdge::Bottom, NotchMode::Folded, 3);
+        let folded = rings(WORK_AREA, 1.0, NotchEdge::Bottom, NotchMode::Folded, 3);
         assert_eq!(folded.bottom(), WORK_AREA.bottom());
     }
 
     #[test]
     fn folded_is_a_thin_pill_along_the_edge() {
-        let vertical = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
+        let vertical = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
         assert_eq!(vertical.width, FOLDED_THICKNESS as u32);
         assert!(vertical.height > vertical.width);
 
-        let horizontal = layout(WORK_AREA, 1.0, NotchEdge::Top, NotchMode::Folded, 3);
+        let horizontal = rings(WORK_AREA, 1.0, NotchEdge::Top, NotchMode::Folded, 3);
         assert_eq!(horizontal.height, FOLDED_THICKNESS as u32);
         assert!(horizontal.width > horizontal.height);
     }
 
     #[test]
     fn the_notch_is_centred_along_its_edge() {
-        let rect = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
+        let rect = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
         let gap_above = rect.y - WORK_AREA.y;
         let gap_below = WORK_AREA.bottom() - rect.bottom();
         assert!((gap_above - gap_below).abs() <= 1, "not centred: {gap_above} vs {gap_below}");
@@ -505,23 +576,23 @@ mod tests {
 
     #[test]
     fn more_providers_make_the_notch_longer_not_thicker() {
-        let one = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 1);
-        let three = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
+        let one = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 1);
+        let three = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
         assert_eq!(one.width, three.width);
         assert!(three.height > one.height);
     }
 
     #[test]
     fn scaling_grows_the_notch_in_physical_pixels() {
-        let at_one = layout(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
-        let at_two = layout(WORK_AREA, 2.0, NotchEdge::Right, NotchMode::Folded, 3);
+        let at_one = rings(WORK_AREA, 1.0, NotchEdge::Right, NotchMode::Folded, 3);
+        let at_two = rings(WORK_AREA, 2.0, NotchEdge::Right, NotchMode::Folded, 3);
         assert_eq!(at_two.width, at_one.width * 2);
     }
 
     #[test]
     fn a_work_area_smaller_than_the_notch_clamps_instead_of_overflowing() {
         let tiny = Rect { x: 10, y: 10, width: 120, height: 90 };
-        let rect = layout(tiny, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
+        let rect = rings(tiny, 1.0, NotchEdge::Right, NotchMode::Pinned, 3);
         assert!(contains_rect(tiny, rect), "{rect:?} escaped {tiny:?}");
     }
 
@@ -530,10 +601,10 @@ mod tests {
         // Smooth animation depends on this: the window never resizes, so what
         // moves is the card drawn inside it.
         for edge in all_edges() {
-            let expected = window_rect(WORK_AREA, 1.0, edge, 3);
+            let expected = rings_window(WORK_AREA, 1.0, edge, 3);
             for mode in [NotchMode::Folded, NotchMode::Peek, NotchMode::Pinned] {
                 assert_eq!(
-                    window_rect(WORK_AREA, 1.0, edge, 3),
+                    rings_window(WORK_AREA, 1.0, edge, 3),
                     expected,
                     "{edge:?}/{mode:?} moved the window"
                 );
@@ -545,7 +616,7 @@ mod tests {
     #[test]
     fn the_pill_sits_inside_the_window_flush_with_the_same_edge() {
         for edge in all_edges() {
-            let window = window_rect(WORK_AREA, 1.0, edge, 3);
+            let window = rings_window(WORK_AREA, 1.0, edge, 3);
             let pill = pill_rect(WORK_AREA, 1.0, edge, 3);
             assert!(contains_rect(window, pill), "{edge:?}: {pill:?} outside {window:?}");
             match edge {
@@ -555,6 +626,50 @@ mod tests {
                 NotchEdge::Bottom => assert_eq!(pill.bottom(), window.bottom()),
             }
         }
+    }
+
+    #[test]
+    fn the_bar_style_is_wider_than_the_ring_style_and_still_fits() {
+        for edge in all_edges() {
+            let with_rings = window_rect(WORK_AREA, 1.0, edge, 3, NotchStyle::Rings);
+            let with_bars = window_rect(WORK_AREA, 1.0, edge, 3, NotchStyle::Bars);
+            assert_ne!(with_rings, with_bars, "{edge:?}: the styles need different room");
+            assert!(contains_rect(WORK_AREA, with_bars), "{edge:?} escaped: {with_bars:?}");
+            // A bar carries a name, a scale, a percentage and a reset time, so
+            // it needs more room across the edge than a ring does.
+            if edge.is_vertical() {
+                assert!(with_bars.width > with_rings.width);
+            } else {
+                assert!(with_bars.height < with_rings.height);
+            }
+        }
+    }
+
+    #[test]
+    fn the_folded_pill_is_the_same_whatever_the_expanded_style() {
+        // The pointer watch keys off the pill, so switching style must not move
+        // the hot zone out from under the cursor.
+        for edge in all_edges() {
+            assert_eq!(
+                layout(WORK_AREA, 1.0, edge, NotchMode::Folded, 3, NotchStyle::Rings),
+                layout(WORK_AREA, 1.0, edge, NotchMode::Folded, 3, NotchStyle::Bars),
+            );
+        }
+    }
+
+    #[test]
+    fn anchoring_to_the_whole_monitor_is_what_reaches_the_taskbar() {
+        // Same monitor, once as the work area and once as the full screen. The
+        // second is the only one that can sit on the bar — which is why it is
+        // off by default (SPEC §9.1).
+        let full = Rect { x: 0, y: 0, width: 1440, height: 900 };
+        let work = Rect { x: 0, y: 0, width: 1440, height: 852 };
+
+        let on_bar = rings_window(full, 1.0, NotchEdge::Bottom, 3);
+        let above_bar = rings_window(work, 1.0, NotchEdge::Bottom, 3);
+        assert_eq!(on_bar.bottom(), 900);
+        assert_eq!(above_bar.bottom(), 852);
+        assert!(on_bar.bottom() > above_bar.bottom());
     }
 
     #[test]

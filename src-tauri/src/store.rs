@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::Language;
 use crate::model::{ProviderId, ProviderSnapshot};
-use crate::notch::{NotchAnimation, NotchEdge};
+use crate::notch::{NotchAnimation, NotchEdge, NotchStyle};
 
 const SNAPSHOTS_FILE: &str = "snapshots.json";
 const BACKOFF_FILE: &str = "backoff.json";
@@ -43,6 +43,10 @@ pub struct Prefs {
     pub notch_visible: bool,
     pub notch_edge: NotchEdge,
     pub notch_animation: NotchAnimation,
+    pub notch_style: NotchStyle,
+    /// Anchors the notch to the whole monitor instead of the work area, which
+    /// is the only way for it to sit on the taskbar. Off unless asked for.
+    pub notch_over_taskbar: bool,
     /// `None` follows the operating system's language.
     pub language: Option<Language>,
     pub autostart: bool,
@@ -72,6 +76,8 @@ impl Default for Prefs {
             notch_visible: true,
             notch_edge: NotchEdge::default(),
             notch_animation: NotchAnimation::default(),
+            notch_style: NotchStyle::default(),
+            notch_over_taskbar: false,
             language: None,
             autostart: false,
             auto_update: true,

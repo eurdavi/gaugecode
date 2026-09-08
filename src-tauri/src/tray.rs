@@ -10,7 +10,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_positioner::{Position, WindowExt};
 
-use crate::i18n::{fill, Language, Strings};
+use crate::i18n::{self, fill, Language, Strings};
 use crate::icon::{self, ICON_SIZE};
 use crate::state::AppState;
 
@@ -208,7 +208,8 @@ fn tooltip(state: &AppState, language: Language) -> String {
     };
 
     let percent = (window.used_fraction * 100.0).round() as i64;
-    let mut line = format!("{name} — {} {percent}%", window.label);
+    let label = i18n::window_label(language, &window.id, &window.label);
+    let mut line = format!("{name} — {label} {percent}%");
     if let Some(reset) = humanize_reset(window.resets_at, Utc::now(), text) {
         line.push_str(&format!(" · {reset}"));
     }

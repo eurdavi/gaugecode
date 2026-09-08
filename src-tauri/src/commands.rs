@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::i18n::{fill, Language};
 use crate::model::{ProviderAccount, ProviderId, ProviderSnapshot, ProviderStatus, SignInHint};
-use crate::notch::{self, NotchAnimation, NotchEdge};
+use crate::notch::{self, NotchAnimation, NotchEdge, NotchStyle};
 use crate::providers::Registry;
 use crate::state::AppState;
 use crate::store;
@@ -59,6 +59,8 @@ pub struct PrefsView {
     pub notch_visible: bool,
     pub notch_edge: NotchEdge,
     pub notch_animation: NotchAnimation,
+    pub notch_style: NotchStyle,
+    pub notch_over_taskbar: bool,
     pub autostart: bool,
     pub auto_update: bool,
     pub poll_seconds: u64,
@@ -83,6 +85,8 @@ pub enum PrefUpdate {
     NotchVisible { visible: bool },
     NotchEdge { edge: NotchEdge },
     NotchAnimation { animation: NotchAnimation },
+    NotchStyle { style: NotchStyle },
+    NotchOverTaskbar { over: bool },
     /// `null` goes back to following the operating system.
     Language { language: Option<Language> },
     Autostart { enabled: bool },
@@ -159,6 +163,8 @@ fn view_of(state: &AppState) -> PrefsView {
         notch_visible: prefs.notch_visible,
         notch_edge: prefs.notch_edge,
         notch_animation: prefs.notch_animation,
+        notch_style: prefs.notch_style,
+        notch_over_taskbar: prefs.notch_over_taskbar,
         autostart: prefs.autostart,
         auto_update: prefs.auto_update,
         poll_seconds: prefs.poll_seconds,
@@ -200,6 +206,8 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
         PrefUpdate::NotchVisible { visible } => state.set_notch_visible(visible),
         PrefUpdate::NotchEdge { edge } => state.set_notch_edge(edge),
         PrefUpdate::NotchAnimation { animation } => state.set_notch_animation(animation),
+        PrefUpdate::NotchStyle { style } => state.set_notch_style(style),
+        PrefUpdate::NotchOverTaskbar { over } => state.set_notch_over_taskbar(over),
         PrefUpdate::Language { language } => state.set_language(language),
         PrefUpdate::Autostart { enabled } => {
             // Ask the OS first: if registering the login item fails there is no

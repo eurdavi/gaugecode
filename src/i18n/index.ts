@@ -34,6 +34,27 @@ const en = {
     resettingNow: "resetting now",
     underAMinute: "under a minute",
   },
+  /**
+   * Limit-window names, keyed by the window id rather than by the label the
+   * adapter produced — the id is stable and language independent. Mirrors the
+   * catalogue in `src-tauri/src/i18n.rs`; change one, change the other.
+   */
+  windowNames: {
+    session: "Session (5h)",
+    weekly: "Weekly",
+    weekly_all: "Weekly (all models)",
+    weekly_opus: "Weekly (Opus)",
+    weekly_sonnet: "Weekly (Sonnet)",
+    plan: "Plan (billing cycle)",
+    api: "Included API usage",
+    on_demand: "On-demand spend",
+    primary: "Primary limit",
+    secondary: "Secondary limit",
+    rolling: "Rolling (5h)",
+    monthly: "Monthly",
+    credits: "Credits",
+    mcp: "MCP (1 month)",
+  } as Record<string, string>,
   fidelity: {
     official: "from the vendor",
     derived: "estimated",
@@ -69,6 +90,10 @@ const en = {
     notchUnsupported:
       "This session is Wayland, where an application cannot place its own window — the notch would drift, so it is turned off. The tray and the popup work normally. Log in to an X11 session to use it.",
     animation: "Animation",
+    notchStyle: "Expanded view",
+    overTaskbar: "Allow it over the taskbar",
+    overTaskbarHint:
+      "Off by default the notch stays inside the work area, so it can never cover the taskbar or the Dock. Turn this on and it anchors to the whole screen instead — which is the only way to sit on the bar.",
     appearance: "Appearance",
     language: "Language",
     languageSystem: "System",
@@ -93,6 +118,10 @@ const en = {
     fade: "Fade",
     instant: "None",
   },
+  notchStyle: {
+    rings: "Rings",
+    bars: "Bars",
+  } as Record<string, string>,
   language: {
     en: "English",
     "pt-BR": "Português (Brasil)",
@@ -184,6 +213,22 @@ const ptBR: Messages = {
     resettingNow: "resetando agora",
     underAMinute: "menos de um minuto",
   },
+  windowNames: {
+    session: "Sessão (5h)",
+    weekly: "Semanal",
+    weekly_all: "Semanal (todos os modelos)",
+    weekly_opus: "Semanal (Opus)",
+    weekly_sonnet: "Semanal (Sonnet)",
+    plan: "Plano (ciclo de faturamento)",
+    api: "Uso de API incluído",
+    on_demand: "Gasto sob demanda",
+    primary: "Limite principal",
+    secondary: "Limite secundário",
+    rolling: "Contínuo (5h)",
+    monthly: "Mensal",
+    credits: "Créditos",
+    mcp: "MCP (1 mês)",
+  },
   fidelity: {
     official: "direto do fornecedor",
     derived: "estimado",
@@ -219,6 +264,10 @@ const ptBR: Messages = {
     notchUnsupported:
       "Esta sessão é Wayland, onde um aplicativo não pode posicionar a própria janela — o notch ficaria à deriva, então está desligado. A bandeja e o popup funcionam normalmente. Entre numa sessão X11 para usá-lo.",
     animation: "Animação",
+    notchStyle: "Visão expandida",
+    overTaskbar: "Permitir sobre a barra de tarefas",
+    overTaskbarHint:
+      "Desligado, o notch fica dentro da área útil e nunca cobre a barra de tarefas nem o Dock. Ligado, ele passa a se ancorar na tela inteira — que é a única forma de ficar sobre a barra.",
     appearance: "Aparência",
     language: "Idioma",
     languageSystem: "Do sistema",
@@ -242,6 +291,10 @@ const ptBR: Messages = {
     slide: "Deslizar",
     fade: "Esmaecer",
     instant: "Nenhuma",
+  },
+  notchStyle: {
+    rings: "Anéis",
+    bars: "Barras",
   },
   language: {
     en: "English",
@@ -326,6 +379,22 @@ const es: Messages = {
     resettingNow: "reiniciándose ahora",
     underAMinute: "menos de un minuto",
   },
+  windowNames: {
+    session: "Sesión (5h)",
+    weekly: "Semanal",
+    weekly_all: "Semanal (todos los modelos)",
+    weekly_opus: "Semanal (Opus)",
+    weekly_sonnet: "Semanal (Sonnet)",
+    plan: "Plan (ciclo de facturación)",
+    api: "Uso de API incluido",
+    on_demand: "Gasto a demanda",
+    primary: "Límite principal",
+    secondary: "Límite secundario",
+    rolling: "Continuo (5h)",
+    monthly: "Mensual",
+    credits: "Créditos",
+    mcp: "MCP (1 mes)",
+  },
   fidelity: {
     official: "directo del proveedor",
     derived: "estimado",
@@ -361,6 +430,10 @@ const es: Messages = {
     notchUnsupported:
       "Esta sesión es Wayland, donde una aplicación no puede colocar su propia ventana — el notch quedaría a la deriva, así que está desactivado. La bandeja y el popup funcionan con normalidad. Inicia una sesión X11 para usarlo.",
     animation: "Animación",
+    notchStyle: "Vista expandida",
+    overTaskbar: "Permitir sobre la barra de tareas",
+    overTaskbarHint:
+      "Desactivado, el notch se queda dentro del área de trabajo y nunca tapa la barra de tareas ni el Dock. Activado, se ancla a la pantalla completa — que es la única forma de estar sobre la barra.",
     appearance: "Apariencia",
     language: "Idioma",
     languageSystem: "Del sistema",
@@ -384,6 +457,10 @@ const es: Messages = {
     slide: "Deslizar",
     fade: "Desvanecer",
     instant: "Ninguna",
+  },
+  notchStyle: {
+    rings: "Anillos",
+    bars: "Barras",
   },
   language: {
     en: "English",
@@ -455,4 +532,13 @@ export const LANGUAGES: Language[] = ["en", "pt-BR", "es"];
 /** Sign-in steps for one provider, in the current language. */
 export function connectSteps(messages: Messages, provider: ProviderId): readonly string[] {
   return messages.connect[provider];
+}
+
+/**
+ * Localised name for a limit window. Unknown ids keep whatever the adapter
+ * called it: a window a vendor adds tomorrow should appear under its own name
+ * rather than disappear for want of a translation.
+ */
+export function windowLabel(messages: Messages, id: string, fallback: string): string {
+  return messages.windowNames[id] ?? fallback;
 }

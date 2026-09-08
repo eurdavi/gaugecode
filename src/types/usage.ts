@@ -90,6 +90,8 @@ export type PrefUpdate =
   | { key: "notch_visible"; visible: boolean }
   | { key: "notch_edge"; edge: NotchEdge }
   | { key: "notch_animation"; animation: NotchAnimation }
+  | { key: "notch_style"; style: NotchStyle }
+  | { key: "notch_over_taskbar"; over: boolean }
   /** `null` goes back to following the operating system. */
   | { key: "language"; language: Language | null }
   | { key: "autostart"; enabled: boolean }
@@ -105,6 +107,8 @@ export type NotchMode = "folded" | "peek" | "pinned";
 
 export type NotchAnimation = "slide" | "fade" | "instant";
 
+export type NotchStyle = "rings" | "bars";
+
 /** Mirror of `Language` in `src-tauri/src/i18n.rs`. */
 export type Language = "en" | "pt-BR" | "es";
 
@@ -113,6 +117,7 @@ export interface NotchView {
   edge: NotchEdge;
   visible: boolean;
   animation: NotchAnimation;
+  style: NotchStyle;
   /** CSS pixels; the sliver the pointer watch is waiting for. */
   folded_thickness: number;
   folded_length: number;
@@ -127,6 +132,8 @@ export interface PrefsView {
   notch_visible: boolean;
   notch_edge: NotchEdge;
   notch_animation: NotchAnimation;
+  notch_style: NotchStyle;
+  notch_over_taskbar: boolean;
   autostart: boolean;
   auto_update: boolean;
   poll_seconds: number;
