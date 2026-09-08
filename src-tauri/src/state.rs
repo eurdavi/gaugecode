@@ -213,6 +213,10 @@ impl AppState {
         self.update_prefs(|inner| inner.prefs.poll_seconds = seconds);
     }
 
+    pub fn set_onboarded(&self, onboarded: bool) {
+        self.update_prefs(|inner| inner.prefs.onboarded = onboarded);
+    }
+
     /// Shows or hides one limit window. The tray may need a redraw because the
     /// headline window can change.
     pub fn set_window_hidden(&self, id: ProviderId, window_id: String, hidden: bool) {

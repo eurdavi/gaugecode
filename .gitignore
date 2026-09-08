@@ -17,6 +17,16 @@ dist-ssr
 auth.json
 state.vscdb
 
+# Internal working documents, kept at the root because the agent rules and the
+# spec reference each other from here — but not published. README.md is the
+# public face of the project and stays tracked.
+AGENTS.md
+SPEC.md
+
+# Updater signing key, if one is ever generated beside the project
+*.key
+!src-tauri/**/*.key
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

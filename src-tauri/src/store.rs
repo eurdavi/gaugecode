@@ -53,6 +53,8 @@ pub struct Prefs {
     /// Limit windows the user chose to hide, per provider. Hiding is by window
     /// id, so a window the provider stops reporting simply stops being hidden.
     pub hidden_windows: HashMap<ProviderId, Vec<String>>,
+    /// False until the first-run walkthrough has been dismissed.
+    pub onboarded: bool,
 }
 
 /// Anything faster than this is a good way to earn a 429 (SPEC §8).
@@ -75,6 +77,7 @@ impl Default for Prefs {
             auto_update: true,
             poll_seconds: DEFAULT_POLL_SECONDS,
             hidden_windows: HashMap::new(),
+            onboarded: false,
         }
     }
 }

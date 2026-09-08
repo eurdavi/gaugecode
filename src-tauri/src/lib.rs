@@ -125,6 +125,13 @@ pub fn run() {
             // `get_prefs`; this is how it catches up.
             commands::publish_prefs(&handle);
 
+            // A tray app with no window is invisible on a first launch — the
+            // user has no way to know it started. So the walkthrough opens
+            // itself once, and only once.
+            if !app.state::<Arc<AppState>>().prefs().onboarded {
+                tray::show_settings(&handle);
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())

@@ -9,7 +9,7 @@
  *  - `DateTime<Utc>` → RFC 3339 string
  */
 
-export type ProviderId = "claude" | "cursor" | "codex";
+export type ProviderId = "claude" | "cursor" | "codex" | "glm" | "grok" | "opencode";
 
 export type Fidelity = "official" | "derived" | "manual";
 
@@ -52,6 +52,13 @@ export type SignInHint =
   | { kind: "open_app"; app: string }
   | { kind: "text"; text: string };
 
+/** One limit window as the per-provider gear offers it. */
+export interface WindowChoice {
+  id: string;
+  label: string;
+  hidden: boolean;
+}
+
 /** One row of the UI, as returned by the `get_state` command. */
 export interface ProviderView {
   id: ProviderId;
@@ -59,7 +66,10 @@ export interface ProviderView {
   enabled: boolean;
   /** `null` means "no reading yet" — show a placeholder, never a zero. */
   status: ProviderStatus | null;
+  /** Already filtered by the user's choices — this is what to draw. */
   snapshot: ProviderSnapshot | null;
+  /** Every window reported, hidden ones included, so the gear can offer them back. */
+  windows: WindowChoice[];
   account: ProviderAccount | null;
   sign_in_hint: SignInHint | null;
   manage_url: string | null;
@@ -83,7 +93,10 @@ export type PrefUpdate =
   /** `null` goes back to following the operating system. */
   | { key: "language"; language: Language | null }
   | { key: "autostart"; enabled: boolean }
-  | { key: "auto_update"; enabled: boolean };
+  | { key: "auto_update"; enabled: boolean }
+  | { key: "poll_seconds"; seconds: number }
+  | { key: "window_hidden"; provider: ProviderId; window: string; hidden: boolean }
+  | { key: "onboarded"; onboarded: boolean };
 
 /** Mirror of `NotchEdge` / `NotchMode` / `NotchAnimation` in `src-tauri/src/notch.rs`. */
 export type NotchEdge = "right" | "left" | "top" | "bottom";
@@ -116,6 +129,12 @@ export interface PrefsView {
   notch_animation: NotchAnimation;
   autostart: boolean;
   auto_update: boolean;
+  poll_seconds: number;
+  poll_seconds_min: number;
+  poll_seconds_max: number;
+  /** False on Wayland, where an app cannot place its own window. */
+  notch_supported: boolean;
+  onboarded: boolean;
   demo: boolean;
   version: string;
 }

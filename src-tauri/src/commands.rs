@@ -69,6 +69,7 @@ pub struct PrefsView {
     /// False on Wayland, where an app cannot place its own window. The UI
     /// explains it instead of offering a notch that would drift.
     pub notch_supported: bool,
+    pub onboarded: bool,
     /// True when running on fixtures, so the UI can say the numbers are fake.
     pub demo: bool,
     pub version: &'static str,
@@ -89,6 +90,7 @@ pub enum PrefUpdate {
     PollSeconds { seconds: u64 },
     /// Shows or hides one limit window of one provider.
     WindowHidden { provider: ProviderId, window: String, hidden: bool },
+    Onboarded { onboarded: bool },
 }
 
 #[tauri::command]
@@ -163,6 +165,7 @@ fn view_of(state: &AppState) -> PrefsView {
         poll_seconds_min: store::MIN_POLL_SECONDS,
         poll_seconds_max: store::MAX_POLL_SECONDS,
         notch_supported: notch::positioning_supported(),
+        onboarded: prefs.onboarded,
         demo: state.is_demo(),
         version: env!("CARGO_PKG_VERSION"),
     }
@@ -211,6 +214,7 @@ pub fn set_pref(app: AppHandle, state: State<'_, Arc<AppState>>, update: PrefUpd
         PrefUpdate::WindowHidden { provider, window, hidden } => {
             state.set_window_hidden(provider, window, hidden)
         }
+        PrefUpdate::Onboarded { onboarded } => state.set_onboarded(onboarded),
     }
 
     tray::update(&app);

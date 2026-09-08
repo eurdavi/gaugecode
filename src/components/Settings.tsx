@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LANGUAGES, connectSteps, type Messages } from "../i18n";
 import { describeStatus, setPref, useMessages, usePrefs, useProviders } from "../lib/usage";
+import { Onboarding } from "./Onboarding";
 import {
   UPDATE_EVENT,
   type AvailableUpdate,
@@ -16,6 +17,8 @@ import {
 
 const EDGES: NotchEdge[] = ["top", "bottom", "left", "right"];
 const ANIMATIONS: NotchAnimation[] = ["slide", "fade", "instant"];
+/** Round numbers between the bounds Rust enforces. */
+const POLL_CHOICES = [30, 60, 120, 300, 900];
 
 const README_ANCHOR =
   "https://github.com/eurdavi/gaugecode#what-the-app-reads-and-what-it-never-does";
@@ -23,6 +26,25 @@ const README_ANCHOR =
 // ---------------------------------------------------------------------------
 // Small shared pieces
 // ---------------------------------------------------------------------------
+
+function GearIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -121,8 +143,12 @@ function ProviderRow({
   onChanged: () => void;
 }) {
   const [showSteps, setShowSteps] = useState(false);
+  const [showWindows, setShowWindows] = useState(false);
   // Offer the instructions before the user has to hunt for them.
   const needsAuth = view.status?.kind === "needs_auth";
+  // Never let the last one be unticked: hiding everything would leave the ring
+  // with nothing to draw, and Rust would ignore the filter anyway.
+  const visibleCount = view.windows.filter((window) => !window.hidden).length;
 
   return (
     <li className="px-4 py-3">
@@ -143,6 +169,19 @@ function ProviderRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          {view.enabled && view.windows.length > 1 && (
+            <button
+              type="button"
+              aria-label={messages.settings.windows}
+              aria-expanded={showWindows}
+              title={messages.settings.windows}
+              className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              onClick={() => setShowWindows((open) => !open)}
+            >
+              <GearIcon />
+            </button>
+          )}
+
           <label
             className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400"
             title={messages.settings.trayHint}
@@ -176,6 +215,39 @@ function ProviderRow({
           />
         </div>
       </div>
+
+      {showWindows && view.windows.length > 0 && (
+        <fieldset className="mt-2 rounded-md bg-neutral-100 px-3 py-2 dark:bg-neutral-950">
+          <legend className="px-1 text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            {messages.settings.windows}
+          </legend>
+          {view.windows.map((window) => (
+            <label
+              key={window.id}
+              className="flex items-center gap-2 py-0.5 text-[11px] text-neutral-600 dark:text-neutral-300"
+            >
+              <input
+                type="checkbox"
+                className="size-3.5 accent-neutral-700"
+                checked={!window.hidden}
+                disabled={!window.hidden && visibleCount <= 1}
+                onChange={(event) => {
+                  void setPref({
+                    key: "window_hidden",
+                    provider: view.id,
+                    window: window.id,
+                    hidden: !event.currentTarget.checked,
+                  }).then(onChanged);
+                }}
+              />
+              {window.label}
+            </label>
+          ))}
+          <p className="mt-1 px-1 text-[10px] text-neutral-400 dark:text-neutral-500">
+            {messages.settings.windowsHint}
+          </p>
+        </fieldset>
+      )}
 
       {view.enabled && view.implemented && (
         <>
@@ -285,6 +357,18 @@ export function Settings() {
   const { providers, reload } = useProviders();
   const prefs = usePrefs();
   const messages = useMessages(prefs);
+  const [dismissed, setDismissed] = useState(false);
+
+  if (prefs && !prefs.onboarded && !dismissed) {
+    return (
+      <Onboarding
+        messages={messages}
+        providers={providers}
+        onChanged={() => void reload()}
+        onDone={() => setDismissed(true)}
+      />
+    );
+  }
 
   const languageOptions: { value: Language | "system"; label: string }[] = [
     { value: "system", label: messages.settings.languageSystem },
@@ -324,15 +408,45 @@ export function Settings() {
         </Card>
       </Section>
 
+      <Section title={messages.settings.refresh}>
+        <Card>
+          <ChoiceRow
+            label={messages.settings.refreshEvery}
+            options={POLL_CHOICES.filter(
+              (seconds) =>
+                prefs === null ||
+                (seconds >= prefs.poll_seconds_min && seconds <= prefs.poll_seconds_max),
+            ).map((seconds) => ({
+              value: String(seconds),
+              label:
+                seconds < 60
+                  ? messages.settings.seconds(seconds)
+                  : messages.settings.minutes(seconds / 60),
+            }))}
+            selected={String(prefs?.poll_seconds ?? 60)}
+            disabled={prefs === null}
+            onSelect={(value) => void setPref({ key: "poll_seconds", seconds: Number(value) })}
+          />
+          <p className="border-t border-neutral-200 px-4 py-3 text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+            {messages.settings.refreshHint}
+          </p>
+        </Card>
+      </Section>
+
       <Section title={messages.settings.notch}>
         <Card>
+          {prefs && !prefs.notch_supported && (
+            <p className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+              {messages.settings.notchUnsupported}
+            </p>
+          )}
           <Toggle
             label={messages.settings.notchVisible}
-            checked={prefs?.notch_visible ?? false}
-            disabled={prefs === null}
+            checked={(prefs?.notch_visible ?? false) && (prefs?.notch_supported ?? true)}
+            disabled={prefs === null || !prefs.notch_supported}
             onChange={(visible) => void setPref({ key: "notch_visible", visible })}
           />
-          {prefs && (
+          {prefs && prefs.notch_supported && (
             <>
               <div className="border-t border-neutral-200 dark:border-neutral-800">
                 <ChoiceRow

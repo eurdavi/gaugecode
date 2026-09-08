@@ -1,0 +1,4 @@
+# GitHub hides the Sponsor button until the account is actually enrolled at
+# github.com/sponsors, so this file is harmless before that and works the
+# moment enrolment goes through.
+github: [eurdavi]

@@ -64,12 +64,12 @@
       "windows": {
         "installMode": "passive"
       },
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0RkZEQ0NBREY5MjM4NjgKUldSb09KTGZ5dHovRkZxclRlNEdsYk43ZUp6M0hzdHpReER0Unp0ak95SE1ZOGxnNnJSbGVXWm8K"
     }
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
