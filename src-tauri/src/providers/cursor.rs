@@ -104,13 +104,54 @@ fn read_item_table(path: &Path) -> rusqlite::Result<Vec<(String, String)>> {
     rows.collect()
 }
 
+/// A scratch directory that deletes itself, so a copy of somebody's credential
+/// database cannot outlive the read that needed it — not on an early return,
+/// not on a panic.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Creates a private directory to copy the database into.
+///
+/// Two things here are deliberate, because on Linux and macOS the system temp
+/// directory is shared with every other local user:
+///
+/// * the name carries a high-resolution timestamp, so it cannot be guessed
+///   ahead of time the way a bare process id could;
+/// * `create_dir`, **not** `create_dir_all` — an existing path means somebody
+///   got there first, possibly with a symlink pointing somewhere they can read,
+///   and reusing it would hand them the credential database. Failing is the
+///   only safe answer.
+fn scratch() -> Result<Scratch, ProviderError> {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_nanos())
+        .unwrap_or_default();
+    let dir = std::env::temp_dir()
+        .join(format!("gaugecode-cursor-{}-{unique:x}", std::process::id()));
+
+    std::fs::create_dir(&dir).map_err(|error| ProviderError::Io(error.to_string()))?;
+
+    // Keep other users out of the directory itself, not just the files in it.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+
+    Ok(Scratch(dir))
+}
+
 /// Copies the database aside so it can be read while Cursor holds a lock on it.
 /// The write-ahead log has to come along or the copy can be missing the most
 /// recent transaction — including a token that was just refreshed.
 fn read_item_table_from_copy(path: &Path) -> Result<Vec<(String, String)>, ProviderError> {
-    let dir = std::env::temp_dir().join(format!("gaugecode-cursor-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(|error| ProviderError::Io(error.to_string()))?;
-    let copy = dir.join("state.vscdb");
+    let scratch = scratch()?;
+    let copy = scratch.0.join("state.vscdb");
 
     std::fs::copy(path, &copy).map_err(|error| ProviderError::Io(error.to_string()))?;
     for suffix in ["-wal", "-shm"] {
@@ -121,9 +162,7 @@ fn read_item_table_from_copy(path: &Path) -> Result<Vec<(String, String)>, Provi
         }
     }
 
-    let result = read_item_table(&copy).map_err(|error| ProviderError::Io(error.to_string()));
-    let _ = std::fs::remove_dir_all(&dir);
-    result
+    read_item_table(&copy).map_err(|error| ProviderError::Io(error.to_string()))
 }
 
 /// Turns the raw rows into a credential. Values are quoted JSON strings in some
@@ -531,6 +570,79 @@ mod tests {
         assert_eq!(unquote("\"quoted\""), "quoted");
         assert_eq!(unquote("bare"), "bare");
         assert_eq!(unquote("  \"padded\"  "), "padded");
+    }
+
+    #[test]
+    fn the_scratch_directory_is_private_unguessable_and_self_deleting() {
+        let first = scratch().expect("scratch should be created");
+        let path = first.0.clone();
+        assert!(path.exists());
+
+        // Unguessable: two in a row must not collide, or a pre-created path
+        // could be waiting for the next one.
+        let second = scratch().expect("a second scratch should be created");
+        assert_ne!(first.0, second.0);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700, "other users must not be able to look inside");
+        }
+
+        drop(first);
+        assert!(!path.exists(), "a copy of a credential database must not outlive its read");
+    }
+
+    #[test]
+    fn an_existing_scratch_path_is_refused_rather_than_reused() {
+        // Reusing a path somebody else created — a symlink, say — would copy
+        // the credential database somewhere they can read it.
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let taken = std::env::temp_dir().join(format!("gaugecode-cursor-taken-{unique:x}"));
+        std::fs::create_dir(&taken).unwrap();
+        assert!(std::fs::create_dir(&taken).is_err(), "create_dir must reject an existing path");
+        let _ = std::fs::remove_dir_all(&taken);
+    }
+
+    #[test]
+    fn a_copy_is_readable_and_leaves_nothing_behind() {
+        let dir = std::env::temp_dir().join(format!("gaugecode-src-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("state.vscdb");
+
+        let seed = Connection::open(&source).unwrap();
+        seed.execute_batch(
+            "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);
+             INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', '\"tok\"');
+             INSERT INTO ItemTable VALUES ('cursorAuth/stripeMembershipAuthId', 'user_7');",
+        )
+        .unwrap();
+        drop(seed);
+
+        let before = scratch_dirs();
+        let rows = read_item_table_from_copy(&source).expect("the copy should be readable");
+        assert_eq!(credential_from_rows(&rows).unwrap().account_id, "user_7");
+        assert_eq!(scratch_dirs(), before, "the scratch directory should be gone");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn scratch_dirs() -> usize {
+        std::fs::read_dir(std::env::temp_dir())
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry.file_name().to_string_lossy().starts_with("gaugecode-cursor-")
+                    })
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     #[test]
