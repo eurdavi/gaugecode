@@ -280,10 +280,20 @@ pub fn begin_bar_drag(app: AppHandle) {
     });
 }
 
-/// The strip has no room for details; a click opens the same popup the tray does.
+/// The strip has no room for details, so a click opens the tray popup — but
+/// beside the strip rather than over by the tray icon, which is where the user
+/// just clicked.
 #[tauri::command]
 pub fn open_popup(app: AppHandle) {
-    tray::toggle_popup(&app);
+    if let Some(window) = app.get_webview_window(tray::POPUP_WINDOW) {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+            return;
+        }
+    }
+    if !bar::show_popup_beside(&app) {
+        tray::toggle_popup(&app);
+    }
 }
 
 /// Clicking the notch pins it open; clicking again lets it fold back.

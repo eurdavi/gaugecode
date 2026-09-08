@@ -321,10 +321,17 @@ pub fn drag_step(app: &AppHandle) -> bool {
 
     if !primary_button_down() {
         state.lock().grab_gap = None;
-        // Persist where it ended up, so the next launch puts it back there.
-        if let Some(window) = app.get_webview_window(BAR_WINDOW) {
-            if let Ok(position) = window.outer_position() {
-                note_moved(app, position);
+        // Saved here rather than through `note_moved`: every drag step records
+        // its own position as `last_applied`, so `note_moved` would see the
+        // final position as one of ours and skip persisting it — which is
+        // exactly why a dragged strip used to jump home on the next change.
+        if let Some((taskbar, scale)) = current_taskbar(app) {
+            if let Some(window) = app.get_webview_window(BAR_WINDOW) {
+                if let Ok(position) = window.outer_position() {
+                    let offset = offset_of(taskbar, position, scale);
+                    tracing::debug!(offset, "remembering where the bar was dropped");
+                    app.state::<Arc<AppState>>().set_bar_offset(Some(offset));
+                }
             }
         }
         return false;
@@ -350,6 +357,73 @@ pub fn cancel_drag(app: &AppHandle) {
 
 pub fn is_dragging(app: &AppHandle) -> bool {
     app.try_state::<BarState>().is_some_and(|state| state.is_dragging())
+}
+
+/// Where the popup should sit when it was opened from the strip: alongside it,
+/// on the inner side of the taskbar, and clamped so it stays on screen.
+///
+/// Taking the strip's own rectangle rather than the taskbar's means the popup
+/// follows wherever the strip was dragged to.
+pub fn popup_position(
+    strip: Rect,
+    taskbar: Taskbar,
+    work_area: Rect,
+    popup: (u32, u32),
+) -> PhysicalPosition<i32> {
+    let (popup_width, popup_height) = popup;
+
+    let (x, y) = if taskbar.is_horizontal() {
+        // Centred on the strip, and on whichever side of the bar the desktop is.
+        let x = strip.x + strip.width as i32 / 2 - popup_width as i32 / 2;
+        let y = match taskbar.side {
+            TaskbarSide::Bottom => taskbar.rect.y - popup_height as i32,
+            _ => taskbar.rect.y + taskbar.rect.height as i32,
+        };
+        (x, y)
+    } else {
+        let y = strip.y + strip.height as i32 / 2 - popup_height as i32 / 2;
+        let x = match taskbar.side {
+            TaskbarSide::Left => taskbar.rect.x + taskbar.rect.width as i32,
+            _ => taskbar.rect.x - popup_width as i32,
+        };
+        (x, y)
+    };
+
+    // Never off the edge of the usable desktop.
+    let max_x = work_area.x + work_area.width as i32 - popup_width as i32;
+    let max_y = work_area.y + work_area.height as i32 - popup_height as i32;
+    PhysicalPosition::new(
+        x.clamp(work_area.x, max_x.max(work_area.x)),
+        y.clamp(work_area.y, max_y.max(work_area.y)),
+    )
+}
+
+/// Shows the tray popup beside the strip. Falls back to the caller's own
+/// placement when there is no taskbar to work from.
+pub fn show_popup_beside(app: &AppHandle) -> bool {
+    let Some(popup) = app.get_webview_window(crate::tray::POPUP_WINDOW) else { return false };
+    let Some(strip) = app.get_webview_window(BAR_WINDOW) else { return false };
+    let Some((monitor, work_area, _)) = monitor_and_work_area(app) else { return false };
+    let Some(taskbar) = taskbar_of(monitor, work_area) else { return false };
+
+    let (Ok(position), Ok(size), Ok(popup_size)) =
+        (strip.outer_position(), strip.outer_size(), popup.outer_size())
+    else {
+        return false;
+    };
+    let strip_rect =
+        Rect { x: position.x, y: position.y, width: size.width, height: size.height };
+
+    let at = popup_position(
+        strip_rect,
+        taskbar,
+        work_area,
+        (popup_size.width, popup_size.height),
+    );
+    let _ = popup.set_position(at);
+    let _ = popup.show();
+    let _ = popup.set_focus();
+    true
 }
 
 pub fn view(app: &AppHandle) -> BarView {
@@ -446,6 +520,64 @@ mod tests {
         assert_eq!(rect.x, 0);
         assert_eq!(rect.width, 72, "as wide as the taskbar");
         assert_eq!(rect.height, WIDTH as u32);
+    }
+
+    const WORK: Rect = Rect { x: 0, y: 0, width: 1440, height: 852 };
+
+    #[test]
+    fn the_popup_opens_beside_the_strip_not_over_by_the_tray() {
+        let taskbar = taskbar_of(MONITOR, WORK).unwrap();
+        // A strip dragged to the middle of the taskbar.
+        let strip = Rect { x: 600, y: 852, width: 152, height: 48 };
+        let at = popup_position(strip, taskbar, WORK, (340, 420));
+
+        // Centred on the strip: 600 + 76 - 170.
+        assert_eq!(at.x, 506);
+        // Sitting on top of the taskbar, not over it.
+        assert_eq!(at.y, 852 - 420);
+    }
+
+    #[test]
+    fn the_popup_follows_the_strip_when_it_moves() {
+        let taskbar = taskbar_of(MONITOR, WORK).unwrap();
+        let left = popup_position(Rect { x: 300, y: 852, width: 152, height: 48 }, taskbar, WORK, (340, 420));
+        let right = popup_position(Rect { x: 900, y: 852, width: 152, height: 48 }, taskbar, WORK, (340, 420));
+        assert_eq!(right.x - left.x, 600);
+    }
+
+    #[test]
+    fn the_popup_never_hangs_off_the_screen() {
+        let taskbar = taskbar_of(MONITOR, WORK).unwrap();
+        // A strip parked hard against the right edge would centre a popup
+        // half-way off the desktop.
+        let at = popup_position(
+            Rect { x: 1284, y: 852, width: 152, height: 48 },
+            taskbar,
+            WORK,
+            (340, 420),
+        );
+        assert_eq!(at.x + 340, 1440, "clamped to the right edge");
+
+        let at = popup_position(Rect { x: 0, y: 852, width: 152, height: 48 }, taskbar, WORK, (340, 420));
+        assert_eq!(at.x, 0, "and to the left edge");
+    }
+
+    #[test]
+    fn the_popup_opens_below_a_taskbar_at_the_top() {
+        let work = Rect { x: 0, y: 48, width: 1440, height: 852 };
+        let taskbar = taskbar_of(MONITOR, work).unwrap();
+        let at = popup_position(Rect { x: 600, y: 0, width: 152, height: 48 }, taskbar, work, (340, 420));
+        assert_eq!(at.y, 48, "below the bar, not above the screen");
+    }
+
+    #[test]
+    fn the_popup_opens_beside_a_vertical_taskbar() {
+        let work = Rect { x: 72, y: 0, width: 1368, height: 900 };
+        let taskbar = taskbar_of(MONITOR, work).unwrap();
+        let at = popup_position(Rect { x: 0, y: 400, width: 72, height: 152 }, taskbar, work, (340, 420));
+        assert_eq!(at.x, 72, "to the right of a left-hand bar");
+        // Centred on the strip: 400 + 76 - 210.
+        assert_eq!(at.y, 266);
     }
 
     #[test]
