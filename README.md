@@ -11,7 +11,17 @@ Two surfaces, both in v1:
 Inspired by [vinzdg/codenotch](https://github.com/vinzdg/codenotch) (macOS, Swift). This is an
 independent, cross-platform reimplementation in Tauri 2 (Rust + React).
 
-> **Status: M0 — scaffold.** Nothing is wired to a provider yet. See `SPEC.md` §12 for the roadmap.
+> **Status: M1.** The Claude Code adapter, the polling scheduler and the tray icon are in. The
+> notch (M2) and the Cursor/Codex adapters (M3) are not. See `SPEC.md` §12 for the roadmap.
+
+## What works today
+
+- Tray icon with the session percentage drawn into it — green under 50%, amber to 80%, red above,
+  dimmed when the reading is stale.
+- Click the icon for a popup with every limit window the provider reported and when each resets.
+- Polls every 60s while the tool is running, every 5 min otherwise. A 429 backs off from 1 min up
+  to 15 min, and the penalty survives a restart.
+- `GAUGECODE_DEMO=1` shows all three providers from fixtures, without touching a credential.
 
 ## The honest caveat
 
