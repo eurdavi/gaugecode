@@ -26,6 +26,15 @@ impl ProviderId {
             ProviderId::Codex => "Codex",
         }
     }
+
+    /// Process names that mean "this tool is open right now" (SPEC §8).
+    pub fn process_names(self) -> &'static [&'static str] {
+        match self {
+            ProviderId::Claude => &["claude", "claude.exe"],
+            ProviderId::Cursor => &["cursor", "cursor.exe"],
+            ProviderId::Codex => &["codex", "codex.exe"],
+        }
+    }
 }
 
 /// How trustworthy a snapshot is.
@@ -60,6 +69,40 @@ pub fn sort_windows(windows: &mut [LimitWindow]) {
     windows.sort_by_key(|w| if w.id == SESSION_WINDOW_ID { 0 } else { 1 });
 }
 
+/// Colour band of a used fraction (SPEC §9.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Band {
+    Ok,
+    Warn,
+    Hot,
+    /// No usable number: `needsAuth`, `disabled` or `error`.
+    Off,
+}
+
+impl Band {
+    pub fn of(used_fraction: f64) -> Band {
+        if used_fraction < 0.5 {
+            Band::Ok
+        } else if used_fraction <= 0.8 {
+            Band::Warn
+        } else {
+            Band::Hot
+        }
+    }
+
+    /// Colour used to draw the tray icon on Windows. Must match `--color-band-*`
+    /// in `src/styles.css`.
+    pub fn rgb(self) -> [u8; 3] {
+        match self {
+            Band::Ok => [0x22, 0xc5, 0x5e],
+            Band::Warn => [0xf5, 0x9e, 0x0b],
+            Band::Hot => [0xef, 0x44, 0x44],
+            Band::Off => [0x6b, 0x72, 0x80],
+        }
+    }
+}
+
 /// Display-only account info, read from the credential without any network call.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderAccount {
@@ -75,6 +118,17 @@ pub struct ProviderSnapshot {
     pub windows: Vec<LimitWindow>,
     pub fetched_at: DateTime<Utc>,
     pub account: Option<ProviderAccount>,
+}
+
+impl ProviderSnapshot {
+    /// The window the main ring shows. `session` when the provider has one,
+    /// otherwise the first window (Codex reports `primary`/`secondary`).
+    pub fn primary_window(&self) -> Option<&LimitWindow> {
+        self.windows
+            .iter()
+            .find(|w| w.id == SESSION_WINDOW_ID)
+            .or_else(|| self.windows.first())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -105,6 +159,13 @@ pub enum ProviderStatus {
     NeedsAuth,
     Error { message: String },
     Disabled,
+}
+
+impl ProviderStatus {
+    /// A stale or errored provider is drawn dimmed (SPEC §9.1).
+    pub fn is_dimmed(&self) -> bool {
+        !matches!(self, ProviderStatus::Fresh)
+    }
 }
 
 /// Where the user should go to authenticate. The app never logs in by itself.
@@ -162,5 +223,33 @@ mod tests {
         let json = serde_json::to_string(&snapshot).unwrap();
         let back: ProviderSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back, snapshot);
+    }
+
+    #[test]
+    fn bands_follow_the_spec_thresholds() {
+        assert_eq!(Band::of(0.0), Band::Ok);
+        assert_eq!(Band::of(0.499), Band::Ok);
+        assert_eq!(Band::of(0.5), Band::Warn);
+        assert_eq!(Band::of(0.8), Band::Warn);
+        assert_eq!(Band::of(0.801), Band::Hot);
+        assert_eq!(Band::of(1.0), Band::Hot);
+    }
+
+    #[test]
+    fn primary_window_prefers_session_then_falls_back_to_first() {
+        let mut snapshot = ProviderSnapshot {
+            provider: ProviderId::Claude,
+            fidelity: Fidelity::Official,
+            windows: vec![window("weekly_all"), window("session")],
+            fetched_at: Utc::now(),
+            account: None,
+        };
+        assert_eq!(snapshot.primary_window().unwrap().id, "session");
+
+        snapshot.windows = vec![window("primary"), window("secondary")];
+        assert_eq!(snapshot.primary_window().unwrap().id, "primary");
+
+        snapshot.windows.clear();
+        assert!(snapshot.primary_window().is_none());
     }
 }
