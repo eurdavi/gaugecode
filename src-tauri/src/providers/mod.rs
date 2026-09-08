@@ -12,6 +12,8 @@
 //! * never produce a percentage that did not come from the response.
 
 pub mod claude;
+pub mod codex;
+pub mod cursor;
 pub mod demo;
 
 use async_trait::async_trait;
@@ -49,8 +51,11 @@ impl Registry {
                 .map(|id| Box::new(demo::DemoProvider::new(*id)) as Box<dyn UsageProvider>)
                 .collect()
         } else {
-            // M3 registers Cursor and Codex here.
-            vec![Box::new(claude::ClaudeProvider::new())]
+            vec![
+                Box::new(claude::ClaudeProvider::new()),
+                Box::new(cursor::CursorProvider::new()),
+                Box::new(codex::CodexProvider::new()),
+            ]
         };
         Self { providers }
     }

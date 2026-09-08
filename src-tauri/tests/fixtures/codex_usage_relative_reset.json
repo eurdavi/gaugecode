@@ -1,0 +1,9 @@
+{
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 12.0,
+      "window_minutes": 300,
+      "resets_in_seconds": 10800
+    }
+  }
+}

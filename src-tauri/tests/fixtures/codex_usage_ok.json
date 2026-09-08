@@ -1,0 +1,21 @@
+{
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 23.4,
+      "window_minutes": 300,
+      "resets_at": "2026-09-07T17:00:00Z"
+    },
+    "secondary_window": {
+      "used_percent": 61.0,
+      "window_minutes": 10080,
+      "resets_at": "2026-09-12T00:00:00Z"
+    },
+    "additional_rate_limits": [
+      { "name": "something_else", "used_percent": 99.0 }
+    ],
+    "code_review_rate_limit": {
+      "used_percent": 5.0,
+      "window_minutes": 300
+    }
+  }
+}
