@@ -68,7 +68,7 @@ jobs:
             macOS: universal `.dmg`, not notarised yet, so Gatekeeper warns once.
             Linux: `.AppImage` or `.deb`. The notch needs an X11 session; on
             Wayland it stays off and the tray takes over.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
